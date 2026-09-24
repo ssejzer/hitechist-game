@@ -1,0 +1,19 @@
+{
+  "name": "root-access",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build && node scripts/offline.mjs",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test tests/*.test.js",
+    "test:browser": "node tests/browser.mjs",
+    "package": "node scripts/package.mjs",
+    "test:offline": "node tests/offline.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0",
+    "vite": "^7.3.0"
+  }
+}

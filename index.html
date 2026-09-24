@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#101b1c" />
+    <meta
+      name="description"
+      content="One sysadmin. Three incidents. Zero excuses. A personalized arcade survival game for Sebastian, the Hitechist."
+    />
+    <title>ROOT ACCESS — A Hitechist game</title>
+    <link rel="stylesheet" href="/fonts/fonts.css" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="site-header">
+        <a
+          class="brand"
+          href="https://hitechist.com/"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Visit Hitechist blog"
+          ><span class="brand-mark">h<span>_</span></span
+          ><span
+            >hitechist<span class="brand-caption"
+              >INDEPENDENT ARCADE DIVISION</span
+            ></span
+          ></a
+        >
+        <div class="header-note">
+          MAKING TECH NERDY AGAIN<span class="green-dot"></span>
+        </div>
+        <button class="text-button" id="help-button">
+          <span>?</span> Field manual
+        </button>
+      </header>
+      <main>
+        <div class="chapter-line">
+          <span><i></i> A GAME FOR SEBASTIAN SEJZER</span
+          ><span>VOL. 01 <b>/</b> THE NIGHT SHIFT</span>
+        </div>
+        <section class="arcade" aria-label="Root Access game">
+          <div class="machine-top">
+            <div class="window-dots"><i></i><i></i><i></i></div>
+            <span id="terminal-title"
+              >sebastian@production:~ / root-access</span
+            >
+            <div class="machine-actions">
+              <button id="switch-player-button" class="shift-action hidden" aria-label="End shift and choose another character">SWITCH PLAYER</button>
+              <button id="end-shift-button" class="shift-action hidden" aria-label="End shift and return to title">END SHIFT</button>
+              <button
+                id="sound-button"
+                aria-label="Enable sound"
+                aria-pressed="false"
+              >
+                SOUND OFF</button
+              ><button id="pause-button" disabled aria-label="Pause game">
+                Ⅱ</button
+              ><button id="fullscreen-button" aria-label="Toggle fullscreen">
+                ⛶
+              </button>
+            </div>
+          </div>
+          <div class="game-viewport" id="viewport">
+            <canvas
+              id="game"
+              width="1120"
+              height="620"
+              aria-label="Server room arena. Move with WASD or arrow keys. Your weapon fires automatically."
+              tabindex="0"
+            ></canvas>
+            <div class="scanlines"></div>
+            <div class="hud hidden" id="hud">
+              <div class="hud-health">
+                <span><span id="player-name">SEBASTIAN</span> <b id="health-text">100 HP</b></span>
+                <div class="meter"><i id="health-bar"></i></div>
+              </div>
+              <div
+                class="server-status"
+                id="server-status"
+                aria-label="Server integrity"
+              >
+                <span>WEB <b>100</b></span
+                ><span>DB <b>100</b></span
+                ><span>API <b>100</b></span>
+              </div>
+              <div class="wave-info">
+                <span id="wave-label">01 / THE LEGACY STACK</span
+                ><b id="timer">00:00</b>
+              </div>
+              <div class="hud-score">
+                <span>PATCHES <b id="patches">12</b></span
+                ><span>SCORE <b id="score">000000</b></span>
+              </div>
+            </div>
+            <div class="boss-hud hidden" id="boss-hud">
+              <span>! FRIDAY DEPLOY <b id="boss-percent">100%</b></span>
+              <div class="meter"><i id="boss-bar"></i></div>
+            </div>
+            <div class="start-screen" id="start-screen">
+              <div class="eyebrow">
+                <span class="live-dot"></span> PRODUCTION IS YOUR PLAYGROUND
+              </div>
+              <h1>ROOT<br /><span>ACCESS</span><em>_</em></h1>
+              <p class="hero-description">
+                One sysadmin. Three incidents.<br />Absolutely no staging
+                environment.
+              </p>
+              <button class="character-picker-button" id="character-button">CHOOSE CHARACTER · <span id="selected-character">Sebastian</span></button>
+              <button class="primary-button" id="start-button">
+                <span>START YOUR SHIFT</span><span>↗</span>
+              </button>
+              <div class="start-meta">
+                <span>↵ ENTER TO START</span><span>~ 3 MIN / RUN</span>
+              </div>
+              <div class="best-label" id="best-label">
+                LOCAL HIGH SCORE <b>000000</b>
+              </div>
+            </div>
+            <div class="scene-tag" id="scene-tag">
+              <span class="green-dot"></span> TEL AVIV DATACENTER
+              <span>02:47 AM</span>
+            </div>
+            <div class="character-tag" id="character-tag">
+              <span>PLAYER_01</span><strong id="character-tag-name">SEBASTIAN</strong> <b>↓</b>
+            </div>
+            <div class="wave-banner hidden" id="wave-banner">
+              <span id="banner-kicker">INCIDENT 01</span
+              ><strong id="banner-title">The legacy stack</strong>
+              <p id="banner-copy">It worked on someone's machine.</p>
+            </div>
+            <div class="ability-bar hidden" id="ability-bar">
+              <span><kbd>SPACE</kbd> <b id="dash-label">DASH</b></span
+              ><span><kbd>Q</kbd> <b id="pulse-label">SUDO PULSE</b></span
+              ><span><kbd>E</kbd> REPAIR · 4 PATCHES</span>
+            </div>
+            <div class="touch-controls hidden" id="touch-controls">
+              <div id="joystick" aria-label="Movement joystick">
+                <div id="stick"></div>
+              </div>
+              <div class="touch-actions">
+                <button id="touch-repair">REPAIR</button
+                ><button id="touch-pulse">PULSE</button
+                ><button id="touch-dash">DASH</button>
+              </div>
+            </div>
+            <div class="game-toast hidden" id="game-toast" role="status"></div>
+            <div class="overlay hidden" id="pause-screen">
+              <div class="modal compact">
+                <span class="eyebrow">PROCESS SUSPENDED</span>
+                <h2>Take a breath<span>.</span></h2>
+                <p>The internet can wait a minute.</p>
+                <button class="primary-button" id="resume-button">
+                  RESUME SHIFT <span>→</span></button
+                ><button class="secondary-button" id="pause-switch-button">
+                  Switch character
+                </button
+                ><button class="secondary-button" id="quit-button">
+                  End shift & return to title
+                </button>
+              </div>
+            </div>
+            <div class="overlay hidden" id="upgrade-screen">
+              <div class="modal upgrade-modal">
+                <span class="eyebrow">INCIDENT CONTAINED / SYSTEM UPGRADE</span>
+                <h2>Work smarter<span>.</span></h2>
+                <p>Pick one permanent upgrade for the rest of your shift.</p>
+                <div id="upgrade-options"></div>
+                <div class="modal-foot">
+                  All servers restored +25 · Health restored +30
+                </div>
+              </div>
+            </div>
+            <div class="overlay hidden" id="end-screen">
+              <div class="modal end-modal">
+                <img
+                  id="end-avatar"
+                  src="./assets/victory.png"
+                  alt="Sebastian avatar"
+                /><span class="eyebrow" id="end-kicker">SHIFT COMPLETE</span>
+                <h2 id="end-title">Go touch grass<span>.</span></h2>
+                <p id="end-copy">
+                  Production is alive. Your phone is finally quiet.
+                </p>
+                <div class="end-stats">
+                  <div><span>SCORE</span><b id="end-score">0</b></div>
+                  <div>
+                    <span>PROCESSES KILLED</span><b id="end-kills">0</b>
+                  </div>
+                  <div><span>TIME ON CALL</span><b id="end-time">0:00</b></div>
+                </div>
+                <p class="end-record" id="end-record"></p>
+                <button class="primary-button" id="restart-button">
+                  ONE MORE SHIFT <span>↻</span></button
+                ><button class="secondary-button" id="end-switch-button">
+                  Switch character
+                </button
+                ><button class="secondary-button" id="home-button">
+                  Back to title
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="machine-bottom">
+            <span
+              ><i class="green-dot"></i
+              ><span id="status-text"
+                >ALL SYSTEMS SUSPICIOUSLY OPERATIONAL</span
+              ></span
+            ><span id="seed-text"
+              >BUILD 01.00 <b>●</b> LOCAL / OFFLINE READY</span
+            >
+          </div>
+        </section>
+        <section class="below-game">
+          <div class="operator">
+            <div class="avatar-wrap">
+              <img
+                id="operator-avatar" src="./assets/characters/sebastian.png"
+                alt="Sebastian in his signature hat and glasses"
+              />
+            </div>
+            <div>
+              <span class="section-label">YOUR ON-CALL ENGINEER</span>
+              <h3 id="operator-name">Sebastian <span>“The Hitechist”</span></h3>
+              <p>Root privileges. Questionable sleep schedule.</p>
+            </div>
+          </div>
+          <div class="controls-summary">
+            <div>
+              <span class="key-group"
+                ><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>/</span
+                ><kbd>↑↓←→</kbd></span
+              >
+              <p>Move & dodge the chaos</p>
+            </div>
+            <div>
+              <span class="auto-icon">⌖</span
+              ><span class="section-label">AUTO-FIRE ENABLED</span>
+              <p>You steer. Automation shoots.</p>
+            </div>
+          </div>
+        </section>
+        <section class="briefing">
+          <div>
+            <span class="section-label">THE MISSION</span>
+            <h2>Keep the lights on.</h2>
+            <p>
+              Protect three servers. Collect patches. Survive the shift.<br />When
+              things go wrong, there’s always <code>sudo</code>.
+            </p>
+          </div>
+          <div class="incident-track">
+            <div>
+              <span>01</span><b>THE LEGACY STACK</b
+              ><small>Someone else's technical debt.</small>
+            </div>
+            <div>
+              <span>02</span><b>CLUSTER PANIC</b
+              ><small>It's always DNS. Until it isn't.</small>
+            </div>
+            <div>
+              <span>03</span><b>THE FRIDAY DEPLOY</b
+              ><small>One last push. What could go wrong?</small>
+            </div>
+          </div>
+        </section>
+      </main>
+      <footer>
+        <span>BUILT FOR SEBASTIAN. POWERED BY CAFFEINE.</span
+        ><a href="https://hitechist.com/" target="_blank" rel="noreferrer"
+          >MORE FROM HITECHIST ↗</a
+        ><span>NO CLOUD BILL INCLUDED.</span>
+      </footer>
+    </div>
+    <dialog id="help-dialog">
+      <div class="manual-head">
+        <span class="eyebrow">ROOT ACCESS / FIELD MANUAL</span
+        ><button id="close-help" aria-label="Close manual">×</button>
+      </div>
+      <h2>Survive production.</h2>
+      <p>
+        You're Sebastian, the last engineer awake. Keep yourself and the
+        datacenter alive through three incidents, then defeat the Friday Deploy.
+      </p>
+      <div class="manual-grid">
+        <div>
+          <kbd>W A S D</kbd> / <kbd>ARROWS</kbd><b>Move</b>
+          <p>Your patch blaster targets nearby threats automatically.</p>
+        </div>
+        <div>
+          <kbd>SPACE</kbd><b>Dash</b>
+          <p>
+            Burst through enemies without taking damage. Recharges in 3 seconds.
+          </p>
+        </div>
+        <div>
+          <kbd>Q</kbd><b>Sudo pulse</b>
+          <p>
+            Knock back and damage every threat around you. Recharges in 10
+            seconds.
+          </p>
+        </div>
+        <div>
+          <kbd>E</kbd><b>Repair</b>
+          <p>
+            Stand by a server and hold E. Each repair restores 24 integrity for
+            4 patches.
+          </p>
+        </div>
+      </div>
+      <p class="manual-tip">
+        Green diamonds are patches. Pink crosses restore health. Enemies attack
+        you and your servers. If you fall—or all three servers go down—the shift
+        is over. Pick an upgrade between incidents.
+      </p>
+      <p class="manual-tip">
+        On touchscreens: drag the left joystick to move; use the right action
+        buttons. Press P or Escape to pause. Your best score stays on this
+        browser.
+      </p>
+      <button class="primary-button" id="manual-play">
+        GOT IT <span>→</span>
+      </button>
+    </dialog>
+    <dialog id="character-dialog" aria-labelledby="character-title">
+      <div class="roster-heading"><div><span class="section-label">PLAYER SELECT</span><h2 id="character-title">Choose your engineer</h2></div><button id="close-characters" aria-label="Close character selection">✕</button></div>
+      <p>Same powers. Different faces. Pick your on-call engineer.</p>
+      <div id="character-roster" class="character-roster" aria-label="Engineers"></div>
+      <button class="primary-button" id="confirm-character">READY <span>→</span></button>
+    </dialog>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
