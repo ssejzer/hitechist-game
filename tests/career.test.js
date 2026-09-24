@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { LOCATIONS } from "../src/career.js";
-import { createGame, step, repair, pickUpgrade, spawnEnemy, damageEnemy, activeObjectiveId } from "../src/engine.js";
+import { createGame, step, repair, pickUpgrade, spawnEnemy, damageEnemy, activeObjectiveId, useCoffee } from "../src/engine.js";
 import { isSolidAt, blockAt } from "../src/world.js";
 import { LocalSession } from "../src/session.js";
 import { CHARACTERS } from "../src/characters.js";
@@ -35,6 +35,55 @@ test("bystanders wander and their state survives a snapshot", () => {
   session.advance(1 / 60);
   restored.advance(1 / 60);
   assert.deepEqual(restored.state.bystanders, session.state.bystanders);
+});
+
+test("each non-datacenter room has a reachable coffee machine and coffee overload expires", () => {
+  for (const location of Object.values(LOCATIONS)) {
+    const g = createGame(() => 0.5, location.id);
+    assert.equal(g.coffeeMachines.length, location.id === "datacenter" ? 0 : location.rooms.length);
+    for (const machine of g.coffeeMachines) {
+      assert.equal(isSolidAt(machine.x, machine.y, 35, location.id), false, machine.id);
+      assert.ok(location.rooms.some((room) => room.id === machine.roomId &&
+        machine.x > room.x && machine.x < room.x + room.width &&
+        machine.y > room.y && machine.y < room.y + room.height));
+    }
+  }
+  const g = createGame(() => 0.5, "office");
+  g.spawnTimer = 1000;
+  Object.assign(g.player, { x: g.coffeeMachines[0].x, y: g.coffeeMachines[0].y + 60 });
+  assert.equal(useCoffee(g), true);
+  assert.equal(g.player.coffeeTime, 8);
+  assert.equal(g.coffeeMachines[0].cooldown, 20);
+  for (let i = 0; i < 8 * 60; i++) step(g, 1 / 60);
+  assert.equal(g.player.coffeeTime, 0);
+  assert.ok(g.player.coffeeCrash > 0);
+});
+
+test("monitoring drone seeks damaged equipment, collects patches, and restores from snapshots", () => {
+  const session = new LocalSession({ seed: 21, locationId: "office", characterId: "yaroslav" });
+  const g = session.state;
+  g.spawnTimer = 1000;
+  g.servers[0].hp = 40;
+  Object.assign(g.player, { x: g.servers[0].x + 150, y: g.servers[0].y + 80 });
+  session.advance(1 / 60);
+  assert.equal(g.drone.targetId, g.servers[0].id);
+  g.drops.push({ id: 900, x: g.drone.x, y: g.drone.y, type: "patch", value: 3, life: 10 });
+  const patches = g.patches;
+  session.advance(1 / 60);
+  assert.equal(g.patches, patches + 3);
+  assert.equal(g.drops.length, 0);
+  const restored = LocalSession.fromSnapshot(session.snapshot());
+  assert.deepEqual(restored.state.drone, g.drone);
+  session.advance(1 / 60);
+  restored.advance(1 / 60);
+  assert.deepEqual(restored.state.drone, g.drone);
+});
+
+test("only Yaroslav gets a monitoring drone", () => {
+  for (const character of CHARACTERS) {
+    const g = createGame(() => 0.5, "office", character.id);
+    assert.equal(g.drone !== null, character.id === "yaroslav", character.id);
+  }
 });
 
 test("career stations and both call-center rooms can be reached from their entrance", () => {

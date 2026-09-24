@@ -508,16 +508,59 @@ export class Renderer {
       if (this.talScene.complete && this.talScene.naturalWidth) {
         ctx.save();
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(this.talScene, Math.round(person.x - 108), Math.round(person.y - 164), 216, 164);
+        ctx.drawImage(this.talScene, Math.round(person.x - 75.6), Math.round(person.y - 114.8), 151.2, 114.8);
         ctx.restore();
         const speaking = Math.floor(time / 2.4) % 2;
-        const bubbleX = person.x + (speaking ? 63 : -70);
-        const bubbleY = person.y - (speaking ? 137 : 125);
+        const bubbleX = person.x + (speaking ? 44 : -49);
+        const bubbleY = person.y - (speaking ? 96 : 87);
         this.worldTag(ctx, speaking ? "•••" : "...", bubbleX, bubbleY, "#f6cf7f");
       }
       return;
     }
     this.player(ctx, person, time, true);
+  }
+  coffeeMachine(ctx, machine, time) {
+    const { x, y } = machine;
+    const ready = machine.cooldown <= 0;
+    this.polygon(ctx, [[x - 27, y + 1], [x, y - 12], [x + 29, y + 2], [x + 2, y + 16]], "#081a1b88");
+    this.rect(ctx, x - 20, y - 49, 40, 49, "#40535a");
+    this.rect(ctx, x - 16, y - 45, 32, 25, "#1c3036");
+    this.rect(ctx, x - 12, y - 40, 24, 8, ready ? "#bd815d" : "#70868a");
+    this.rect(ctx, x - 7, y - 17, 14, 10, "#e5d6b7");
+    this.rect(ctx, x + 7, y - 15, 4, 5, "#e5d6b7");
+    this.rect(ctx, x - 15, y - 4, 30, 4, "#25383d");
+    this.rect(ctx, x - 13, y - 28, 4, 3, ready ? "#f6cf7f" : "#667a7c");
+    if (ready) {
+      const rise = (time * 14) % 20;
+      this.rect(ctx, x - 2, y - 23 - rise, 3, 5, "#e3d8bd88");
+    }
+  }
+  monitoringDrone(ctx, drone, time, target) {
+    const hover = Math.sin(time * 5) * 3;
+    const x = drone.x, y = drone.y + hover - 31;
+    if (target) {
+      ctx.save();
+      ctx.strokeStyle = "#8bd3e699";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 5]);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(target.x, target.y - 28);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "#8bd3e6";
+      ctx.beginPath();
+      ctx.ellipse(target.x, target.y, 36, 17, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      this.worldTag(ctx, `MONITOR ${Math.ceil(target.hp)}%`, target.x, target.y - 65, "#8bd3e6");
+    }
+    this.glow(ctx, x, y, 23, "#8bd3e633");
+    this.polygon(ctx, [[x - 18, y], [x, y - 9], [x + 18, y], [x, y + 10]], "#294650");
+    this.polygon(ctx, [[x - 12, y - 2], [x, y - 10], [x + 12, y - 2], [x, y + 4]], "#a1dce4");
+    this.rect(ctx, x - 3, y - 2, 6, 5, "#17434b");
+    this.rect(ctx, x - 21, y - 2, 5, 4, "#f6cf7f");
+    this.rect(ctx, x + 16, y - 2, 5, 4, "#f6cf7f");
   }
   shuttle(ctx, p, time) {
     ctx.save();
@@ -846,10 +889,12 @@ export class Renderer {
         )
         .map((t) => ({ ...t, kind: "prop" })),
       ...g.servers.map((s) => ({ ...s, kind: "server" })),
+      ...(g.coffeeMachines ?? []).map((m) => ({ ...m, kind: "coffee" })),
       ...g.enemies.map((e) => ({ ...e, kind: "enemy" })),
       ...(g.bystanders ?? []).map((person) => ({ ...person, kind: "bystander" })),
       ...g.shuttles.map((s) => ({ ...shuttlePosition(g, s), id: s.id, kind: "shuttle" })),
       ...(companion ? [companion] : []),
+      ...(g.drone && !g.vehicle ? [{ ...g.drone, kind: "drone" }] : []),
       { ...g.player, kind: "player" },
     ].sort((a, b) => a.x + a.y - (b.x + b.y));
     for (const s of g.servers) {
@@ -914,6 +959,15 @@ export class Renderer {
       }
       else if (entity.kind === "shuttle") this.shuttle(ctx, p, time);
       else if (entity.kind === "companion") this.drawCompanion(ctx, p, time);
+      else if (entity.kind === "coffee") {
+        this.coffeeMachine(ctx, p, time);
+        if (Math.hypot(entity.x - g.player.x, entity.y - g.player.y) < 105)
+          this.worldTag(ctx, entity.cooldown > 0 ? `BREWING ${Math.ceil(entity.cooldown)}s` : "HOLD E · COFFEE", p.x, p.y - 65, "#f6cf7f");
+      }
+      else if (entity.kind === "drone") {
+        const target = g.servers.find((s) => s.id === entity.targetId);
+        this.monitoringDrone(ctx, p, time, target ? projectEntity(target) : null);
+      }
       else if (entity.kind === "bystander") this.bystander(ctx, p, time);
       else if (entity.kind === "player") {
         if (!g.vehicle) this.player(ctx, p, time);

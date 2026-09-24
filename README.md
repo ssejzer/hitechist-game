@@ -8,8 +8,8 @@ Move through each workplace while your patch blaster handles nearby bugs. Hold E
 
 Choose your engineer from the title screen: Sebastian, Yaroslav, Juan Ignacio,
 Erez, Luis, Nenad, Elad, Rotem, Tal, Jason, or Aldo. Selection changes the portrait,
-animated pixel character, and player labels; all engineers share the same stats
-and abilities. Your selection is remembered locally. The career campaign
+animated pixel character, and player labels. Engineers share the same base stats;
+Yaroslav has a monitoring drone. Your selection is remembered locally. The career campaign
 keeps the arcade gameplay across all six workplaces; see
 [the campaign plan](docs/career-campaign.md).
 
@@ -31,6 +31,7 @@ Open the local address Vite prints (normally http://localhost:5173).
 | Q                    | Sudo pulse: area damage, knockback, and projectile clearing |
 | Hold E near a marked station | Complete its fix meter for 4 patches |
 | Hold E near damaged equipment | Restore 24 integrity for 4 patches |
+| Hold E near a coffee machine | Gain 8 seconds of faster movement and firing; the machine takes 20 seconds to brew again |
 | 1–3 at remote stages | Travel to a site or choose an AWS shuttle destination |
 | R at remote stages | Dispatch technicians to repair and cover all sites |
 | P / Escape           | Pause or resume                                             |
@@ -45,6 +46,8 @@ Remote stages show travel and support controls below the playfield. At the AWS d
 Workplaces use deterministic 8 × 8 tile chunks with a bounded 32-chunk cache. Only nearby tiles are submitted to the renderer, cached sprites are reused, and enemies remain capped at 55. Characters and enemies have walking cycles and changing expressions; cosmetics do not alter gameplay randomness.
 
 Green diamonds provide patches; pink crosses restore health. All equipment going offline, or losing all player health, ends the run. Between incidents you recover health and equipment integrity and select one of three randomized upgrades. Sound starts muted; enable it in the game toolbar.
+
+Each room outside the datacenter has a coffee machine. Coffee overload boosts movement and firing for eight seconds, followed by a two-second slowdown. Yaroslav's monitoring drone follows him, marks nearby equipment below 75 integrity, and collects patches close to the drone.
 
 The game remains single-player. Its fixed-tick local session, input commands, seeded RNG, stable entity IDs, and JSON snapshots prepare the next multiplayer step. See [the multiplayer notes](docs/multiplayer.md) for what is ready and what the online implementation still needs.
 

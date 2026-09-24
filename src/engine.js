@@ -86,6 +86,21 @@ export const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 export const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 export const wavesFor = (g) => locationFor(g.locationId)?.waves ?? WAVES;
 export const boundsFor = (g) => locationFor(g.locationId) ?? { width: WORLD_WIDTH, height: WORLD_HEIGHT };
+export function coffeeMachinesFor(location) {
+  if (!location || location.id === "datacenter") return [];
+  return location.rooms.map((room) => {
+    const candidates = [
+      [0.32, 0.32], [0.68, 0.32], [0.32, 0.68], [0.68, 0.68],
+      [0.5, 0.28], [0.5, 0.72], [0.28, 0.5], [0.72, 0.5],
+    ];
+    const point = candidates.map(([rx, ry]) => ({
+      x: room.x + room.width * rx, y: room.y + room.height * ry,
+    })).find((p) => !isSolidAt(p.x, p.y, 35, location.id) &&
+      location.equipment.every((e) => distance(p, e) > 170) &&
+      distance(p, location.start) > 100) ?? { x: room.x + room.width / 2, y: room.y + room.height / 2 };
+    return { id: `coffee-${room.id}`, roomId: room.id, ...point, cooldown: 0 };
+  });
+}
 export const activeObjectiveId = (g) => {
   const objective = g.objectives?.[g.wave];
   return objective?.steps?.[objective.step] ?? (objective?.completed ? null : objective?.id);
@@ -117,6 +132,8 @@ export function createGame(random = seededRandom(WORLD_SEED), locationId = null,
     floaters: [],
     pulses: [],
     bystanders: [],
+    coffeeMachines: coffeeMachinesFor(location),
+    drone: null,
     events: [],
     shake: 0,
     banner: 3.5,
@@ -157,6 +174,8 @@ export function createGame(random = seededRandom(WORLD_SEED), locationId = null,
       dirX: 2,
       dirY: 2,
       moving: false,
+      coffeeTime: 0,
+      coffeeCrash: 0,
     },
     servers: location ? location.equipment.map((e) => ({
       ...e, hp: 100, sector: location.name, rackKind: e.kind,
@@ -191,7 +210,24 @@ export function createGame(random = seededRandom(WORLD_SEED), locationId = null,
     ],
   };
   game.bystanders = createBystanders(game);
+  if (game.player.characterId === "yaroslav")
+    game.drone = { x: game.player.x - 80, y: game.player.y + 70, targetId: null };
   return game;
+}
+export function useCoffee(g) {
+  if (g.mode !== "playing" || g.vehicle) return false;
+  const machine = g.coffeeMachines.find((m) => distance(m, g.player) < 90);
+  if (!machine) return false;
+  if (machine.cooldown > 0) {
+    emit(g, "toast", { text: `Coffee brewing: ${Math.ceil(machine.cooldown)}s.` });
+    return true;
+  }
+  machine.cooldown = 20;
+  g.player.coffeeTime = 8;
+  g.player.coffeeCrash = 0;
+  particles(g, machine.x, machine.y, "#f6cf7f", 12);
+  emit(g, "toast", { text: "COFFEE OVERLOAD: faster movement and patches for 8 seconds!" });
+  return true;
 }
 export function emit(g, type, data = {}) {
   g.events.push({ type, ...data });
@@ -528,6 +564,7 @@ export function step(g, dt, input = {}) {
   g.travelCooldown = Math.max(0, g.travelCooldown - dt);
   g.supportCooldown = Math.max(0, g.supportCooldown - dt);
   g.grace = Math.max(0, g.grace - dt);
+  for (const machine of g.coffeeMachines) machine.cooldown = Math.max(0, machine.cooldown - dt);
   g.banner = Math.max(0, g.banner - dt);
   g.shake = Math.max(0, g.shake - dt * 22);
   advanceShuttles(g, dt);
@@ -541,6 +578,11 @@ export function step(g, dt, input = {}) {
   p.pulseCooldown = Math.max(0, p.pulseCooldown - dt);
   p.invincible = Math.max(0, p.invincible - dt);
   p.dashTime = Math.max(0, p.dashTime - dt);
+  if (p.coffeeTime > 0) {
+    p.coffeeTime = Math.max(0, p.coffeeTime - dt);
+    if (p.coffeeTime < 0.000001) p.coffeeTime = 0;
+    if (p.coffeeTime === 0) p.coffeeCrash = 2;
+  } else p.coffeeCrash = Math.max(0, p.coffeeCrash - dt);
   g.repairTimer = Math.max(0, g.repairTimer - dt);
   let mx = driving ? 0 : input.x || 0,
     my = driving ? 0 : input.y || 0;
@@ -589,8 +631,9 @@ export function step(g, dt, input = {}) {
       p.y = stop.y;
     }
   } else {
-    const nextX = clamp(p.x + mx * p.speed * dt, 140, bounds.width - 140);
-    const nextY = clamp(p.y + my * p.speed * dt, 140, bounds.height - 140);
+    const coffeeSpeed = p.coffeeTime > 0 ? 1.35 : p.coffeeCrash > 0 ? 0.85 : 1;
+    const nextX = clamp(p.x + mx * p.speed * coffeeSpeed * dt, 140, bounds.width - 140);
+    const nextY = clamp(p.y + my * p.speed * coffeeSpeed * dt, 140, bounds.height - 140);
     if (!isSolidAt(nextX, p.y, 28, g.locationId)) p.x = nextX;
     if (!isSolidAt(p.x, nextY, 28, g.locationId)) p.y = nextY;
     for (const s of g.servers) {
@@ -632,8 +675,22 @@ export function step(g, dt, input = {}) {
   p.moving = screenDistance > 0.001;
   p.walkPhase += screenDistance / 8;
   if (Math.abs(movedX - movedY) > 0.001) p.facing = Math.sign(movedX - movedY);
+  const drone = g.drone;
+  if (drone) {
+    const damaged = g.servers.filter((s) => s.hp < 75 && distance(s, p) < 650)
+      .sort((a, b) => a.hp - b.hp || distance(a, p) - distance(b, p))[0];
+    drone.targetId = damaged?.id ?? null;
+    const target = damaged ? { x: damaged.x - 65, y: damaged.y + 65 } : { x: p.x - 80, y: p.y + 70 };
+    const gap = distance(drone, target);
+    if (gap > 800) { drone.x = target.x; drone.y = target.y; }
+    else if (gap > 1) {
+      const move = Math.min(gap, 340 * dt);
+      drone.x += (target.x - drone.x) / gap * move;
+      drone.y += (target.y - drone.y) / gap * move;
+    }
+  }
   if (!driving && input.repair && g.repairTimer === 0) {
-    repair(g);
+    if (!useCoffee(g)) repair(g);
     g.repairTimer = 0.65;
   }
   g.spawnTimer -= dt;
@@ -684,7 +741,7 @@ export function step(g, dt, input = {}) {
         damage: p.damage,
         hostile: false,
       });
-    p.fireTimer = p.fireRate;
+    p.fireTimer = p.fireRate * (p.coffeeTime > 0 ? 0.7 : p.coffeeCrash > 0 ? 1.15 : 1);
     emit(g, "shoot");
   }
   for (const e of g.enemies) {
@@ -803,6 +860,15 @@ export function step(g, dt, input = {}) {
   g.enemies = g.enemies.filter((e) => e.hp > 0);
   for (const d of g.drops) {
     d.life -= dt;
+    if (d.type === "patch" && drone && distance(d, drone) < 70) {
+      g.patches += d.value;
+      g.score += d.value * 10;
+      if (g.upgrades.includes("magnet")) p.hp = Math.min(100, p.hp + 2);
+      d.life = 0;
+      particles(g, drone.x, drone.y, "#8bd3e6", 4);
+      emit(g, "pickup");
+      continue;
+    }
     const dist = distance(d, p),
       range = g.upgrades.includes("magnet") ? 175 : 65;
     if (dist < range && dist > 0) {

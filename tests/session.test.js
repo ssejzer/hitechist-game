@@ -6,7 +6,7 @@ import { expressionFor, gaitFor } from "../src/animation.js";
 import { WorldChunks, MAX_CACHED_CHUNKS, blockAt } from "../src/world.js";
 import { CHARACTERS } from "../src/characters.js";
 
-test("character choice survives snapshots without affecting arcade simulation", () => {
+test("character choice and character-specific companions survive snapshots", () => {
   const reference = new LocalSession({ seed: 42 });
   reference.setInput({ x: 1 });
   for (let i = 0; i < 120; i++) reference.advance(FIXED_DT);
@@ -16,7 +16,9 @@ test("character choice survives snapshots without affecting arcade simulation", 
     for (let i = 0; i < 120; i++) session.advance(FIXED_DT);
     const restored = LocalSession.fromSnapshot(JSON.parse(JSON.stringify(session.snapshot())));
     assert.equal(restored.state.player.characterId, character.id);
+    assert.equal(restored.state.drone !== null, character.id === "yaroslav");
     restored.state.player.characterId = "sebastian";
+    restored.state.drone = null;
     assert.deepEqual(restored.snapshot(), reference.snapshot());
   }
   assert.equal(new LocalSession({ characterId: "missing" }).state.player.characterId, "sebastian");

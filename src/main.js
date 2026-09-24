@@ -422,7 +422,9 @@ function updateHud() {
   const objective = game.objectives?.[game.wave];
   const currentStep = objective?.steps?.[objective.step];
   const stepName = game.servers.find((s) => s.id === currentStep)?.name;
-  $("wave-label").textContent = `0${game.wave + 1} / ${wavesFor(game)[game.wave].name}${objective ? ` · ${objective.completed ? "FIXED" : `${stepName ? `${stepName} ` : ""}${Math.round(objective.progress)}%`}` : ""}`;
+  const coffeeStatus = p.coffeeTime > 0 ? ` · COFFEE ${Math.ceil(p.coffeeTime)}s`
+    : p.coffeeCrash > 0 ? ` · COFFEE CRASH ${Math.ceil(p.coffeeCrash)}s` : "";
+  $("wave-label").textContent = `0${game.wave + 1} / ${wavesFor(game)[game.wave].name}${objective ? ` · ${objective.completed ? "FIXED" : `${stepName ? `${stepName} ` : ""}${Math.round(objective.progress)}%`}` : ""}${coffeeStatus}`;
   $("timer").textContent = formatTime(game.time);
   $("dash-label").textContent =
     p.dashCooldown > 0 ? `${p.dashCooldown.toFixed(1)}s` : "DASH";
