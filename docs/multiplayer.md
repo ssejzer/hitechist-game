@@ -34,6 +34,6 @@ The current release is single-player and still deploys as static files on Hostin
 2. Add a transport adapter that sends input commands and receives versioned snapshots/events. The browser keeps the existing renderer and input controls. Validate incoming messages, enforce connection ownership and rate limits, and add join/leave/reconnect handling on the server.
 3. Broadcast snapshots at a lower rate than the 60 Hz simulation. Interpolate remote actors, add local prediction/reconciliation if needed, and acknowledge input sequences. Client animations can continue from synchronized actor phase/time.
 4. Pause should become a local menu during live multiplayer; individual clients must not stop the shared simulation. Bound and deduplicate transient effects/events before broadcasting.
-5. Choose the server host then. Hostinger can continue serving the static frontend; the current ZIP does not provide the persistent realtime server needed for online multiplayer.
+5. Choose the server host then. Hostinger can continue serving the static frontend; online multiplayer also needs a persistent realtime server.
 
 The tests cover frame-rate-independent ticks, snapshot continuation through random events, command rejection, one-shot actions, upgrade authority, animation determinism, and bounded world caching. Full multiplayer authority and network security require the server/roster work above; a deterministic local session alone is not multiplayer.

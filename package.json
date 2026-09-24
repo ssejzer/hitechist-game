@@ -9,7 +9,6 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --test tests/*.test.js",
     "test:browser": "node tests/browser.mjs",
-    "package": "node scripts/package.mjs",
     "test:offline": "node tests/offline.mjs"
   },
   "devDependencies": {

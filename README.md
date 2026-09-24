@@ -49,18 +49,17 @@ This is a **static website**. It needs no Node.js server, database, API keys, or
 
 ```sh
 npm run build
-npm run package
 ```
 
 1. Open your website's **File Manager** in Hostinger hPanel.
 2. Create a `root-access` folder inside `public_html`.
-3. Upload `root-access-hostinger.zip` into that folder and extract it there.
+3. Upload the contents of `dist/` into that folder.
 4. Check that `index.html`, `assets/`, `fonts/`, and `sw.js` are directly inside `public_html/root-access/`.
 5. Open `https://your-domain.com/root-access/`.
 
-You can also upload the contents of `dist/` to a subdomain's document root. All production asset paths are relative, so both approaches work. HTTPS enables offline caching. After the first completed load, the game can reload without an internet connection. A new build creates a fresh versioned cache. To update the game, upload and extract a new package in the same location, replacing the previous game files.
+You can also upload the contents of `dist/` to a subdomain's document root. All production asset paths are relative, so both approaches work. HTTPS enables offline caching. After the first completed load, the game can reload without an internet connection. A new build creates a fresh versioned cache. To update the game, rebuild and upload the new contents of `dist/`, replacing the previous game files.
 
-The included archive is a generated deployment artifact; rebuild it after changing the source. Nothing has been deployed to your hosting account.
+Nothing has been deployed to your hosting account.
 
 ## Verification
 
@@ -95,4 +94,3 @@ The `?test=1` URL flag exposes a small test interface for browser verification; 
 Inspired by [Hitechist](https://hitechist.com/), its “Making tech nerdy again” tagline, and Sebastian's infrastructure, automation, and security background. The supplied avatar images appear in the interface; the pixel world and in-game sprites are drawn directly in code.
 
 No private CV files, contact details, business documents, analytics, or trackers are included in the deployed game. The fonts (Barlow Condensed, DM Sans, IBM Plex Mono) are bundled locally with their SIL Open Font Licenses in `public/fonts/`.
-
