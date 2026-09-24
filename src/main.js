@@ -1,5 +1,5 @@
 import "./style.css";
-import { createGame, wavesFor } from "./engine.js";
+import { createGame, wavesFor, nearestShuttleStop } from "./engine.js";
 import { LOCATIONS, locationFor } from "./career.js";
 import { Renderer } from "./renderer.js";
 import { AudioSystem } from "./audio.js";
@@ -19,6 +19,7 @@ let joystick = { x: 0, y: 0 },
   menu = true,
   lastTime = 0,
   toastUntil = 0,
+  pendingToast = null,
   previousMode = null;
 let best = 0;
 let selectedCharacter = "sebastian";
@@ -29,22 +30,46 @@ try {
   selectedCharacter = getCharacter(localStorage.getItem("hitechist-root-access-character")).id;
   const saved = JSON.parse(localStorage.getItem("hitechist-root-access-career") || "null");
   if (saved && Array.isArray(saved.unlocked) && saved.ratings && typeof saved.ratings === "object") {
-    career.unlocked = ["office", ...saved.unlocked.filter((id) => id === "call_center")];
+    career.unlocked = ["office", ...saved.unlocked.filter((id) => id in LOCATIONS)];
     career.ratings = saved.ratings;
   }
+  const savedLocation = localStorage.getItem("hitechist-root-access-location");
+  selectedLocation = career.unlocked.includes(savedLocation)
+    ? savedLocation
+    : Object.keys(LOCATIONS).filter((id) => career.unlocked.includes(id)).at(-1) || "office";
 } catch {}
+function selectLocation(id) {
+  if (!career.unlocked.includes(id)) return;
+  selectedLocation = id;
+  try { localStorage.setItem("hitechist-root-access-location", id); } catch {}
+  renderCareer();
+  menuScene();
+}
 function renderCareer() {
   const holder = $("career-select");
   holder.replaceChildren();
-  for (const location of Object.values(LOCATIONS)) {
+  const locations = Object.values(LOCATIONS);
+  $("career-progress").textContent = `CAREER PATH · ${locations.filter((location) => Number(career.ratings[location.id]) > 0).length} / ${locations.length} COMPLETED`;
+  for (const [index, location] of locations.entries()) {
     const button = document.createElement("button");
     const unlocked = career.unlocked.includes(location.id);
+    const rating = Math.max(0, Math.min(3, Number(career.ratings[location.id]) || 0));
     button.type = "button";
     button.disabled = !unlocked;
     button.className = "career-location";
+    button.dataset.status = rating ? "completed" : unlocked ? "unlocked" : "locked";
     button.setAttribute("aria-pressed", String(selectedLocation === location.id));
-    button.textContent = `${location.name} · ${unlocked ? (career.ratings[location.id] ? "★".repeat(career.ratings[location.id]) : "READY") : "LOCKED"}`;
-    button.addEventListener("click", () => { selectedLocation = location.id; renderCareer(); menuScene(); });
+    button.setAttribute("aria-label", `Level ${index + 1}: ${location.name}, ${rating ? `${rating} stars earned` : unlocked ? "unlocked" : "locked"}`);
+    const number = document.createElement("span");
+    number.className = "career-node";
+    number.textContent = rating ? "✓" : String(index + 1);
+    const name = document.createElement("span");
+    name.className = "career-name";
+    name.textContent = location.name;
+    const result = document.createElement("small");
+    result.textContent = rating ? "★".repeat(rating) : unlocked ? "READY" : "LOCKED";
+    button.append(number, name, result);
+    button.addEventListener("click", () => selectLocation(location.id));
     holder.append(button);
   }
 }
@@ -101,14 +126,32 @@ function menuScene() {
     { x: game.player.x + 80, y: game.player.y + 100, type: "patch", life: 100 },
   ];
 }
+function updateStageInfo() {
+  const location = locationFor(game.locationId);
+  if (!location) return;
+  const level = Object.keys(LOCATIONS).indexOf(location.id) + 1;
+  $("stage-label").textContent = `LEVEL ${String(level).padStart(2, "0")} · ${location.name}`;
+  const room = location.rooms.find((r) => game.player.x >= r.x && game.player.x <= r.x + r.width &&
+    game.player.y >= r.y && game.player.y <= r.y + r.height);
+  const active = game.objectives?.[game.wave];
+  const targetId = active?.steps?.[active.step];
+  const target = game.servers.find((s) => s.id === targetId);
+  const targetRoom = target && location.rooms.find((r) => target.x >= r.x && target.x <= r.x + r.width &&
+    target.y >= r.y && target.y <= r.y + r.height);
+  const route = location.id === "call_center" && targetRoom && room?.id !== targetRoom.id ? " VIA CENTER DOOR" : "";
+  $("room-label").textContent = `${room?.name || "HALLWAY"}${targetRoom && room?.id !== targetRoom.id ? ` · NEXT: ${targetRoom.name}${route}` : ""}`;
+}
 function start() {
   if ($("help-dialog").open || $("character-dialog").open) return;
+  if (audio.enabled) audio.enable(true);
   session = new LocalSession({
     seed: crypto.getRandomValues(new Uint32Array(1))[0],
     characterId: selectedCharacter,
     locationId: selectedLocation,
   });
   game = session.state;
+  pendingToast = null;
+  updateStageInfo();
   // A new shift begins at the centre of the full facility, not at the menu's
   // showcase location. Snap the camera there so the opening frame is stable.
   Object.assign(renderer.camera, game.player);
@@ -127,8 +170,11 @@ function start() {
   ])
     show(id, false);
   for (const id of ["hud", "ability-bar", "touch-controls"]) show(id, true);
+  show("shuttle-guide", false);
+  setupSiteMap();
   for (const id of ["switch-player-button", "end-shift-button"]) show(id, true);
   $("pause-button").disabled = false;
+  audio.setPlaying(true);
   audio.play("wave");
   banner();
   canvas.focus({ preventScroll: true });
@@ -138,7 +184,12 @@ function start() {
   $("scene-tag").firstElementChild.nextSibling.textContent = ` ${locationFor(selectedLocation).name} `;
   $("server-status").replaceChildren(...game.servers.map((s) => {
     const item = document.createElement("span");
-    item.innerHTML = `${({ wifi: "WI-FI", windows: "WIN", mac: "MAC", ethernet: "ETH", printer: "PRINT", access: "CARD" })[s.id] || s.name} <b>100</b>`;
+    const short = ({ wifi: "WI-FI", windows: "WIN", mac: "MAC", ethernet: "ETH", printer: "PRINT", access: "CARD",
+      okta: "OKTA", ad: "AD", bitlocker: "KEY", intune: "INTUNE", mail: "MAIL", dns: "DNS",
+      vpn: "VPN", edr: "EDR", vmware: "VM", hyperv: "HYPER-V", veeam: "BACKUP", rollout: "ROLLOUT",
+      parts: "PARTS", rack_a: "RACK A", rack_b: "RACK B", uplink: "UPLINK", rack_c: "RACK C", backbone: "BACKBONE",
+      decision: "DECIDE", assignment: "TEAM", unblocker: "UNBLOCK", deadline: "DEADLINE" })[s.id] || s.name;
+    item.innerHTML = `${short} <b>100</b>`;
     return item;
   }));
   toast(
@@ -148,8 +199,49 @@ function start() {
     4,
   );
 }
+function setupSiteMap() {
+  const map = $("site-map"), location = locationFor(game.locationId);
+  map.replaceChildren();
+  show("site-map", !!location.travel);
+  if (!location.travel) return;
+  const label = document.createElement("span");
+  label.textContent = game.locationId === "datacenter" ? "AZ SHUTTLE" : "TRAVEL TO SITE";
+  map.append(label);
+  location.rooms.forEach((room, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = `${index + 1} ${room.name}`;
+    button.dataset.room = room.id;
+    if (game.locationId === "datacenter") button.setAttribute("aria-label", `Select ${room.name} as shuttle destination`);
+    button.addEventListener("click", () => visitRoom(room.id));
+    map.append(button);
+  });
+  if (game.locationId === "datacenter") {
+    const status = document.createElement("span");
+    status.id = "shuttle-status";
+    status.setAttribute("role", "status");
+    map.append(status);
+  }
+  const support = document.createElement("button");
+  support.type = "button";
+  support.id = "support-button";
+  support.addEventListener("click", useSupport);
+  map.append(support);
+}
+function visitRoom(id) {
+  if (!session.travel(id)) return;
+  keys.clear(); joystick = { x: 0, y: 0 }; touchRepair = false;
+  $("stick").style.transform = "";
+  Object.assign(renderer.camera, game.player);
+  canvas.focus({ preventScroll: true });
+}
+function useSupport() {
+  if (session.dispatchSupport()) canvas.focus({ preventScroll: true });
+}
 function home() {
   menu = true;
+  audio.setPlaying(false);
+  pendingToast = null;
   menuScene();
   keys.clear();
   joystick = { x: 0, y: 0 };
@@ -159,6 +251,8 @@ function home() {
     "hud",
     "ability-bar",
     "touch-controls",
+    "site-map",
+    "shuttle-guide",
     "end-screen",
     "pause-screen",
     "upgrade-screen",
@@ -186,13 +280,18 @@ function banner() {
     ? "CRITICAL INCIDENT"
     : `INCIDENT 0${game.wave + 1}`;
   $("banner-title").textContent = game.bossSpawned
-    ? "OFFICE OUTAGE"
+    ? wave.name
     : wave.name;
   $("banner-copy").textContent = game.bossSpawned
     ? "Defeat the outage to earn your promotion."
     : wave.tagline;
 }
 function toast(text, seconds = 2.7) {
+  if (!menu && game.banner > 0) {
+    pendingToast = { text, seconds };
+    show("game-toast", false);
+    return;
+  }
   $("game-toast").textContent = text;
   toastUntil = performance.now() + seconds * 1000;
   show("game-toast", true);
@@ -220,8 +319,10 @@ function pause(force) {
   );
   if (game.mode === "paused") $("resume-button").focus({ preventScroll: true });
   else canvas.focus({ preventScroll: true });
+  audio.setPlaying(game.mode === "playing");
 }
 function showUpgrades() {
+  audio.setPlaying(false);
   const options = session.upgradeChoices();
   $("upgrade-options").replaceChildren();
   for (const [index, u] of options.entries()) {
@@ -232,6 +333,10 @@ function showUpgrades() {
       if (session.chooseUpgrade(u.id)) {
         show("upgrade-screen", false);
         keys.clear();
+        joystick = { x: 0, y: 0 };
+        touchRepair = false;
+        $("stick").style.transform = "";
+        audio.setPlaying(true);
         canvas.focus({ preventScroll: true });
         toast(`${u.name} installed. Back to the incident.`, 3);
       }
@@ -247,13 +352,19 @@ function showUpgrades() {
     `INCIDENT 0${game.wave + 1} CONTAINED. CHOOSE YOUR NEXT ADVANTAGE.`;
 }
 function end(event) {
+  audio.setPlaying(false);
+  pendingToast = null;
+  const next = event.won ? locationFor(game.locationId)?.next : null;
   if (event.won && game.locationId) {
-    const next = locationFor(game.locationId)?.next;
     if (next && !career.unlocked.includes(next)) career.unlocked.push(next);
     const rating = game.player.hp >= 70 && game.servers.every((s) => s.hp >= 50)
       ? 3 : game.player.hp >= 35 ? 2 : 1;
     career.ratings[game.locationId] = Math.max(career.ratings[game.locationId] || 0, rating);
     try { localStorage.setItem("hitechist-root-access-career", JSON.stringify(career)); } catch {}
+    if (next) {
+      selectedLocation = next;
+      try { localStorage.setItem("hitechist-root-access-location", next); } catch {}
+    }
   }
   const record = game.score > best;
   if (record) {
@@ -278,11 +389,12 @@ function end(event) {
     ? "Shift complete<span>.</span>"
     : "Well, that escalated<span>.</span>";
   $("end-copy").textContent = event.won
-    ? `${character.name} contained the ${locationFor(game.locationId)?.name.toLowerCase()} outage.${locationFor(game.locationId)?.next ? " Call-center IT is unlocked." : " All calls are back online."}`
+    ? `${character.name} contained the ${locationFor(game.locationId)?.name.toLowerCase()} outage.${locationFor(game.locationId)?.next ? ` ${locationFor(locationFor(game.locationId).next).name} is unlocked.` : " The career campaign is complete."}`
     : event.reason === "servers"
-      ? "All three stations went down. Collect patches and hold E nearby to repair them."
+      ? "All stations went down. Collect patches and hold E nearby to repair them."
       : "Your shift ended early. Keep moving, dash through trouble, and use your sudo pulse.";
   $("end-score").textContent = scoreText(game.score);
+  $("restart-button").firstChild.textContent = next ? `PLAY ${locationFor(next).name} ` : event.won ? "PLAY AGAIN " : "RETRY SHIFT ";
   $("end-kills").textContent = game.kills;
   $("end-time").textContent = formatTime(game.time);
   $("end-record").textContent = record
@@ -296,6 +408,7 @@ function end(event) {
   $("restart-button").focus({ preventScroll: true });
 }
 function updateHud() {
+  updateStageInfo();
   const p = game.player;
   $("health-text").textContent = `${Math.ceil(p.hp)} HP`;
   $("health-bar").style.width = `${p.hp}%`;
@@ -303,7 +416,9 @@ function updateHud() {
   $("patches").textContent = game.patches;
   $("score").textContent = scoreText(game.score);
   const objective = game.objectives?.[game.wave];
-  $("wave-label").textContent = `0${game.wave + 1} / ${wavesFor(game)[game.wave].name}${objective ? ` · ${objective.completed ? "FIXED" : `${Math.round(objective.progress)}%`}` : ""}`;
+  const currentStep = objective?.steps?.[objective.step];
+  const stepName = game.servers.find((s) => s.id === currentStep)?.name;
+  $("wave-label").textContent = `0${game.wave + 1} / ${wavesFor(game)[game.wave].name}${objective ? ` · ${objective.completed ? "FIXED" : `${stepName ? `${stepName} ` : ""}${Math.round(objective.progress)}%`}` : ""}`;
   $("timer").textContent = formatTime(game.time);
   $("dash-label").textContent =
     p.dashCooldown > 0 ? `${p.dashCooldown.toFixed(1)}s` : "DASH";
@@ -313,6 +428,33 @@ function updateHud() {
     p.dashCooldown > 0 ? `${p.dashCooldown.toFixed(1)}s` : "DASH";
   $("touch-pulse").textContent =
     p.pulseCooldown > 0 ? `${p.pulseCooldown.toFixed(1)}s` : "PULSE";
+  if (locationFor(game.locationId)?.travel) {
+    for (const button of $("site-map").querySelectorAll("[data-room]")) {
+      const room = locationFor(game.locationId).rooms.find((r) => r.id === button.dataset.room);
+      button.disabled = game.mode !== "playing" || (game.locationId !== "datacenter" && game.travelCooldown > 0);
+      button.setAttribute("aria-current", String(game.player.x >= room.x && game.player.x <= room.x + room.width && game.player.y >= room.y && game.player.y <= room.y + room.height));
+      if (game.locationId === "datacenter") button.setAttribute("aria-pressed", String(game.shuttleDestination === room.id));
+    }
+    if (game.locationId === "datacenter") {
+      const room = locationFor(game.locationId).rooms.find((r) => r.id === game.shuttleDestination);
+      const stop = nearestShuttleStop(game);
+      const status = game.vehicle
+        ? `${game.vehicle.phase.toUpperCase()} · ${room?.name || "AZ SHUTTLE"}`
+        : room ? `DEST: ${room.name}` : "NO DESTINATION";
+      if ($("shuttle-status").textContent !== status) $("shuttle-status").textContent = status;
+      const closeToStop = stop.distance < 230 && (!game.vehicle || game.vehicle.phase !== "riding");
+      show("shuttle-guide", closeToStop);
+      const instruction = !room
+        ? "PRESS 1–3 OR TAP A DESTINATION BELOW."
+        : game.vehicle?.phase === "boarding" ? "BOARDING THE SHUTTLE NOW."
+          : game.vehicle?.phase === "exiting" ? `ARRIVING AT ${room.name}.`
+            : "STAY BY THE STOP. THE NEXT SHUTTLE BOARDS YOU AUTOMATICALLY.";
+      if ($("shuttle-guide-text").textContent !== instruction) $("shuttle-guide-text").textContent = instruction;
+    }
+    const support = $("support-button");
+    support.disabled = game.mode !== "playing" || game.supportCooldown > 0;
+    support.textContent = game.supportCooldown > 0 ? `R SUPPORT ${Math.ceil(game.supportCooldown)}s` : "R DISPATCH SUPPORT";
+  }
   for (const [i, s] of game.servers.entries()) {
     const el = $("server-status").children[i];
     el.querySelector("b").textContent = s.hp > 0 ? Math.ceil(s.hp) : "OFF";
@@ -325,7 +467,7 @@ function updateHud() {
     $("boss-percent").textContent =
       `${Math.ceil((boss.hp / boss.maxHp) * 100)}%`;
   }
-  show("wave-banner", game.banner > 0 && game.mode === "playing");
+  show("wave-banner", game.banner > 0 && game.mode === "playing" && !game.vehicle);
 }
 function processEvents() {
   for (const e of game.events.splice(0)) {
@@ -364,6 +506,11 @@ function frame(now) {
     session.setInput({ x, y, repair: keys.has("e") || touchRepair });
     session.advance(dt);
     processEvents();
+    if (pendingToast && game.banner <= 0 && game.mode === "playing") {
+      const queued = pendingToast;
+      pendingToast = null;
+      toast(queued.text, queued.seconds);
+    }
     updateHud();
   }
   renderer.draw(game, menu ? now / 1000 : game.time, menu);
@@ -441,6 +588,14 @@ window.addEventListener("keydown", (e) => {
     return;
   }
   if (menu || game.mode !== "playing") return;
+  if (locationFor(game.locationId)?.travel && !e.repeat) {
+    const index = Number(k) - 1;
+    if (index >= 0 && index < locationFor(game.locationId).rooms.length) {
+      visitRoom(locationFor(game.locationId).rooms[index].id);
+      return;
+    }
+    if (k === "r") { useSupport(); return; }
+  }
   keys.add(k);
   if (e.repeat) return;
   if (k === " ") session.action("dash");
@@ -524,6 +679,15 @@ if (new URLSearchParams(location.search).has("test"))
         visibleTiles: renderer.tiles.length,
         chunks: renderer.world.cache.size,
         sprites: renderer.sprites.size,
+        playerCharacter: renderer.lastRenderedCharacter,
+        companion: renderer.pet ? { species: renderer.pet.species, x: renderer.pet.x, y: renderer.pet.y } : null,
+      };
+    },
+    get audioStats() {
+      return {
+        effectsGain: audio.effectsGain?.gain.value,
+        musicGain: audio.musicGain?.gain.value,
+        musicPaused: audio.music.paused,
       };
     },
   };

@@ -1,4 +1,4 @@
-import { WIDTH, HEIGHT, WORLD_WIDTH, WORLD_HEIGHT, clamp } from "./engine.js";
+import { WIDTH, HEIGHT, WORLD_WIDTH, WORLD_HEIGHT, clamp, activeObjectiveId, shuttlePosition, nearestShuttleStop } from "./engine.js";
 import { TILE, WorldChunks, blockAt, isRack, worldLabel } from "./world.js";
 import { locationFor } from "./career.js";
 import { expressionFor, gaitFor } from "./animation.js";
@@ -19,11 +19,18 @@ export class Renderer {
     this.camera = { x: 1600, y: 1120 };
     this.sprites = new Map();
     this.faces = new Map();
+    this.companions = new Map();
     for (const character of CHARACTERS) {
       const image = new Image();
       image.src = `${import.meta.env.BASE_URL}assets/faces/${character.id}.png`;
       this.faces.set(character.id, image);
     }
+    for (const kind of ["dog", "cat"]) {
+      const image = new Image();
+      image.src = `${import.meta.env.BASE_URL}assets/companions/${kind === "dog" ? "elad-dog" : "nenad-cat"}.png`;
+      this.companions.set(kind, image);
+    }
+    this.pet = null;
     this.world = new WorldChunks();
     this.tiles = [];
   }
@@ -133,6 +140,20 @@ export class Renderer {
           ? "#102522"
           : type === "office-floor"
             ? variant ? "#586b6a" : "#607574"
+          : type === "comms-floor"
+            ? variant ? "#344e5d" : "#3b5765"
+          : type === "server-floor"
+            ? variant ? "#344d56" : "#3c5660"
+          : type === "site-floor"
+            ? variant ? "#4b5f59" : "#536962"
+          : type === "datacenter-floor"
+            ? variant ? "#34464f" : "#3a4e57"
+          : type === "manager-floor"
+            ? variant ? "#68665f" : "#716f66"
+          : type === "road"
+            ? variant ? "#26363c" : "#2c3d43"
+          : type === "yard"
+            ? variant ? "#39514a" : "#40584f"
           : type === "walkway"
             ? "#354647"
             : variant
@@ -167,6 +188,10 @@ export class Renderer {
         "#99ac8544",
         2,
       );
+      return;
+    }
+    if (type === "road") {
+      if (variant) this.line(ctx, [[x - 19, y - 9], [x + 19, y + 9]], "#d6ba71bb", 3);
       return;
     }
     if (type === "edge")
@@ -395,6 +420,19 @@ export class Renderer {
     ctx.fillStyle = "#0a191a";
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
     for (const tile of this.tiles) this.drawTile(ctx, tile.col, tile.row, time);
+    if (this.world.locationId === "datacenter") {
+      for (const room of locationFor("datacenter").rooms) {
+        const entrance = this.screen(room.x + room.width / 2, room.y + room.height + 20);
+        if (entrance.x > 80 && entrance.x < WIDTH - 80 && entrance.y > 70 && entrance.y < HEIGHT - 45)
+          this.worldTag(ctx, room.name, entrance.x, entrance.y, "#f6cf7f");
+        const stop = this.screen(room.x + room.width / 2, 1870);
+        if (stop.x > 85 && stop.x < WIDTH - 85 && stop.y > 100 && stop.y < HEIGHT - 45) {
+          this.rect(ctx, stop.x - 27, stop.y + 4, 54, 5, "#d1bc76");
+          this.rect(ctx, stop.x - 2, stop.y - 45, 4, 48, "#afc5c0");
+          this.worldTag(ctx, `SHUTTLE STOP · ${room.id.slice(-1).toUpperCase()}`, stop.x, stop.y - 49, "#f6cf7f");
+        }
+      }
+    }
     if (this.world.locationId) return;
     const districtX = Math.floor(this.camera.x / (30 * TILE)) * 30 * TILE;
     const districtY = Math.floor(this.camera.y / (20 * TILE)) * 20 * TILE;
@@ -435,35 +473,156 @@ export class Renderer {
     ctx.ellipse(0, 6, 21, 6, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.scale(p.facing ?? 1, 1);
-    const y = Math.round(-44 + gait.bob);
-    // Separate legs and arms let opposite limbs swing through a full stride.
-    for (const [legX, stride] of [
-      [-9, gait.swing],
-      [4, gait.opposite],
-    ]) {
-      this.rect(ctx, legX, -5, 7, 9 + stride * 2, "#52778a");
-      this.rect(ctx, legX, -3 + stride * 2, 3, 6, "#7695a2");
-      this.rect(ctx, legX - 1, 4 + stride * 3, 10, 4, "#13272d");
-      this.rect(ctx, legX, 4 + stride * 3, 8, 1, "#9ab2b1");
-    }
     const character = getCharacter(p.characterId);
+    this.lastRenderedCharacter = character.id;
+    const y = Math.round(-63 + gait.bob);
+    const legWidth = character.build === "slim" ? 5 : character.build === "broad" ? 9 : 7;
+    const hip = character.build === "broad" ? 9 : 6;
+    for (const [side, stride] of [[-1, gait.swing], [1, gait.opposite]]) {
+      const x = side * hip;
+      const lift = Math.max(0, stride) * 5;
+      const knee = [x + stride * 4, -7 - lift * 0.4];
+      const foot = [x + stride * 8, 4 - lift];
+      this.limb(ctx, [[x, -18 + gait.bob], knee, foot], legWidth, side < 0 ? "#425c70" : "#607e91");
+      this.rect(ctx, foot[0] - legWidth / 2 - 1, foot[1] - 1, legWidth + 6, 5, "#102026");
+      this.rect(ctx, foot[0] - legWidth / 2, foot[1] + 2, legWidth + 4, 1, "#a7b5b2");
+    }
     this.engineer(ctx, character, y, gait, expression);
-    this.rect(ctx, 17, -17 - gait.swing * 2, 12, 7, "#172d2b");
-    this.rect(ctx, 23, -16 - gait.swing * 2, 8, 3, "#aad49d");
+    if (character.smoking) {
+      this.rect(ctx, 7, -46 + gait.bob, 19, 5, "#132328");
+      this.rect(ctx, 8, -45 + gait.bob, 14, 3, "#f1e6cf");
+      this.rect(ctx, 22, -45 + gait.bob, 4, 3, "#ed936b");
+      for (let i = 0; i < 4; i++) {
+        const rise = (time * 15 + i * 7) % 29;
+        ctx.globalAlpha = 0.55 * (1 - rise / 29);
+        this.rect(ctx, 26 + Math.sin(time * 2 + i) * 4 + rise * 0.2, -48 - rise, 4, 4, "#dae6dc");
+      }
+      ctx.globalAlpha = p.invincible > 0 && Math.sin(time * 40) > 0 ? 0.5 : 1;
+    }
     ctx.restore();
+  }
+  shuttle(ctx, p, time) {
+    ctx.save();
+    ctx.translate(Math.round(p.x), Math.round(p.y));
+    ctx.scale(p.facing ?? 1, 1);
+    this.polygon(ctx, [[-91, 22], [-21, -12], [92, 18], [16, 55]], "#07191baa");
+    this.polygon(ctx, [[-82, -35], [-25, -64], [75, -31], [14, -2]], "#f7fbf7");
+    this.polygon(ctx, [[-82, -35], [14, -2], [14, 40], [-82, 9]], "#d7e7ec");
+    this.polygon(ctx, [[14, -2], [75, -31], [75, 10], [14, 40]], "#edf5f6");
+    this.polygon(ctx, [[-73, -27], [4, -2], [4, 13], [-73, -12]], "#1d303c");
+    for (const x of [-51, -29, -7])
+      this.line(ctx, [[x, -20 + (x + 73) * 0.32], [x, -5 + (x + 73) * 0.32]], "#95afbc", 3);
+    this.polygon(ctx, [[23, -5], [66, -26], [66, -8], [23, 13]], "#263e4c");
+    this.line(ctx, [[-82, 2], [14, 32], [75, 2]], "#6c9bb4", 4);
+    this.line(ctx, [[-25, -58], [72, -27]], "#dce9ef", 2);
+    this.rect(ctx, -61, 14, 15, 13, "#18242b");
+    this.rect(ctx, 38, 22, 15, 13, "#18242b");
+    this.rect(ctx, -57, 20, 7, 5, "#e1e7e2");
+    this.rect(ctx, 42, 28, 7, 5, "#e1e7e2");
+    this.rect(ctx, 62, 5, 9, 5, "#f6d794");
+    this.text(ctx, "AZ SHUTTLE", -32, 7, "#31536a", 8, "center");
+    if (Math.sin(time * 16) > 0) this.rect(ctx, -80, 4, 6, 3, "#e99b78");
+    ctx.restore();
+  }
+  shuttleWaypoint(ctx, g, time) {
+    if (g.locationId !== "datacenter" || g.vehicle) return;
+    const stop = nearestShuttleStop(g);
+    if (stop.distance >= 230) return;
+    const target = this.screen(stop.x, stop.y);
+    const x = clamp(target.x, 160, WIDTH - 160);
+    const y = clamp(target.y, 205, HEIGHT - 175);
+    this.glow(ctx, x, y, 48, "#f6cf7f44");
+    ctx.save();
+    ctx.translate(x, y);
+    const angle = Math.atan2(target.y - HEIGHT / 2, target.x - WIDTH / 2);
+    ctx.rotate(stop.distance < 150 ? -Math.PI / 2 : angle);
+    this.polygon(ctx, [[19, 0], [-10, -11], [-4, 0], [-10, 11]], "#f6cf7f");
+    ctx.restore();
+    const label = g.shuttleDestination ? "WAIT HERE · BOARDS AUTOMATICALLY" :
+      `SHUTTLE STOP ${stop.room.id.slice(-1).toUpperCase()} · CHOOSE AZ`;
+    this.worldTag(ctx, label, x, y - 22 + Math.sin(time * 5) * 2, "#f6cf7f");
+  }
+  limb(ctx, points, width, color) {
+    const joints = points.map(([x, y]) => [Math.round(x), Math.round(y)]);
+    this.line(ctx, joints, "#15262d", width + 2);
+    this.line(ctx, joints, color, width);
+    for (const [x, y] of joints.slice(1, -1))
+      this.rect(ctx, x - width / 2, y - width / 2, width, width, color);
   }
   engineer(ctx, character, y, gait, expression) {
     const { shirt, skin } = character;
-    // Reuse the existing animated body scale and collision footprint.
-    this.rect(ctx, -12, y + 28, 26, 17, "#192b29");
-    this.rect(ctx, -10, y + 29, 22, 14, shirt);
-    for (const [armX, swing] of [[-16, gait.swing], [12, gait.opposite]]) {
-      this.rect(ctx, armX, y + 29 + swing * 3, 6, 9, shirt);
-      this.rect(ctx, armX, y + 38 + swing * 3, 6, 6, skin);
+    const half = character.build === "slim" ? 8 : character.build === "broad" ? 18 : 12;
+    const lean = Math.round(gait.lean);
+    const top = y + 27, hem = y + 47;
+    const arm = (side, stride) => {
+      const shoulder = [side * (half + 1) + lean, top + 3];
+      const elbow = [side * (half + 5) + lean + stride * 3, top + 12];
+      const hand = [side * (half + 4) + lean + stride * 7, top + 21 - Math.max(0, stride) * 4];
+      this.limb(ctx, [shoulder, elbow], 6, shirt);
+      this.limb(ctx, [elbow, hand], 4, skin);
+      this.rect(ctx, hand[0] - 2, hand[1] - 2, 5, 5, skin);
+    };
+    arm(-1, gait.opposite);
+    const belly = character.build === "broad" ? 3 : -2;
+    this.polygon(ctx, [[-half + lean, top], [half + lean, top],
+      [half + belly + lean, hem - 4], [half - 1 + lean, hem + 2],
+      [-half + 1 + lean, hem + 2], [-half - belly + lean, hem - 4]], "#15262d");
+    this.polygon(ctx, [[-half + 2 + lean, top + 1], [half - 2 + lean, top + 1],
+      [half + belly - 2 + lean, hem - 4], [half - 2 + lean, hem],
+      [-half + 2 + lean, hem], [-half - belly + 2 + lean, hem - 4]], shirt);
+    this.rect(ctx, -half + 3 + lean, top + 5, 3, 11, "#ffffff25");
+    this.rect(ctx, half - 5 + lean, top + 7, 3, 10, "#07191f33");
+    this.rect(ctx, -half + 2 + lean, hem, half * 2 - 4, 3, "#293b43");
+    this.rect(ctx, -1 + lean, hem, 3, 3, "#a2ad9c");
+    this.rect(ctx, 3 + lean, top + 8, 5, 1, "#ffffff44");
+    this.rect(ctx, -3 + lean, top - 4, 7, 6, skin);
+    this.line(ctx, [[-5 + lean, top], [lean, top + 4], [5 + lean, top]], "#15262d", 2);
+    arm(1, gait.swing);
+    if (!drawEngineerPortrait(ctx, this.faces.get(character.id), -16 + lean, y - 8, expression))
+      drawEngineerFace(ctx, character, -16 + lean, y - 8, expression);
+  }
+  companionFor(g, time) {
+    const species = getCharacter(g.player.characterId).companion;
+    if (!species || g.vehicle) {
+      this.pet = null;
+      return null;
     }
-    this.rect(ctx, -3, y + 24, 8, 6, skin);
-    if (!drawEngineerPortrait(ctx, this.faces.get(character.id), -16, y - 8, expression))
-      drawEngineerFace(ctx, character, -16, y - 8, expression);
+    const player = g.player;
+    // The offset projects to the engineer's left so the pet stays visible
+    // beside the body while still trailing movement with a short delay.
+    const target = { x: player.x - 65, y: player.y + 80 };
+    if (!this.pet || this.pet.species !== species || time < this.pet.time ||
+        Math.hypot(this.pet.x - target.x, this.pet.y - target.y) > 360) {
+      this.pet = { ...target, species, time, facing: player.facing, moving: false };
+    } else {
+      const dt = Math.min(0.07, Math.max(0, time - this.pet.time));
+      const gap = Math.hypot(target.x - this.pet.x, target.y - this.pet.y);
+      const catchUp = Math.min(1, dt * (gap > 140 ? 7 : 4.5));
+      this.pet.x += (target.x - this.pet.x) * catchUp;
+      this.pet.y += (target.y - this.pet.y) * catchUp;
+      this.pet.time = time;
+      this.pet.facing = player.facing;
+      this.pet.moving = gap > 8;
+    }
+    return { ...this.pet, kind: "companion" };
+  }
+  drawCompanion(ctx, pet, time) {
+    const image = this.companions.get(pet.species);
+    if (!image?.complete || !image.naturalWidth) return;
+    const width = pet.species === "dog" ? 58 : 46;
+    const height = pet.species === "dog" ? 76 : 66;
+    const frame = pet.moving ? 1 + Math.floor(time * 8) % 2 : Math.floor(time * 0.6) % 7 === 0 ? 3 : 0;
+    const sourceWidth = image.naturalWidth / 4;
+    ctx.save();
+    ctx.translate(Math.round(pet.x), Math.round(pet.y));
+    ctx.fillStyle = "#081a1b88";
+    ctx.beginPath();
+    ctx.ellipse(0, 3, width * 0.33, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.scale(pet.facing > 0 ? -1 : 1, 1);
+    ctx.drawImage(image, frame * sourceWidth, 0, sourceWidth, image.naturalHeight,
+      -width / 2, -height * 0.82, width, height);
+    ctx.restore();
   }
   enemyFace(ctx, e, time) {
     const expression = expressionFor(e, time);
@@ -659,6 +818,7 @@ export class Renderer {
       ...entity,
       ...this.screen(entity.x, entity.y),
     });
+    const companion = this.companionFor(g, time);
     const entities = [
       ...this.tiles
         .filter(
@@ -669,11 +829,13 @@ export class Renderer {
         .map((t) => ({ ...t, kind: "prop" })),
       ...g.servers.map((s) => ({ ...s, kind: "server" })),
       ...g.enemies.map((e) => ({ ...e, kind: "enemy" })),
+      ...g.shuttles.map((s) => ({ ...shuttlePosition(g, s), id: s.id, kind: "shuttle" })),
+      ...(companion ? [companion] : []),
       { ...g.player, kind: "player" },
     ].sort((a, b) => a.x + a.y - (b.x + b.y));
     for (const s of g.servers) {
       const p = this.screen(s.x, s.y),
-        active = g.objectives?.[g.wave]?.id === s.id && !g.objectives[g.wave].completed,
+        active = activeObjectiveId(g) === s.id && !g.objectives[g.wave].completed,
         color = active ? "#f6cf7f" : s.hp <= 0 ? "#c8785d" : s.hp < 35 ? "#e7a475" : "#b7ed8e";
       ctx.strokeStyle = `${color}55`;
       ctx.setLineDash([3, 6]);
@@ -727,12 +889,19 @@ export class Renderer {
         ctx.drawImage(sprite, Math.round(p.x - 80), Math.round(p.y - 112));
         ctx.globalAlpha = 1;
       } else if (entity.kind === "server") {
-        if (g.locationId) this.officeEquipment(ctx, p.x, p.y, entity, time);
+        if (["sysadmin", "datacenter"].includes(g.locationId)) this.rack(ctx, p.x, p.y, entity.hp, time, entity.rackKind);
+        else if (g.locationId) this.officeEquipment(ctx, p.x, p.y, entity, time);
         else this.rack(ctx, p.x, p.y, entity.hp, time, entity.rackKind);
       }
-      else if (entity.kind === "player") this.player(ctx, p, time);
+      else if (entity.kind === "shuttle") this.shuttle(ctx, p, time);
+      else if (entity.kind === "companion") this.drawCompanion(ctx, p, time);
+      else if (entity.kind === "player") {
+        if (!g.vehicle) this.player(ctx, p, time);
+      }
       else this.enemy(ctx, p, time);
     }
+    if (g.vehicle && g.vehicle.phase !== "riding")
+      this.player(ctx, projectEntity(g.player), time);
     for (const shot of g.shots) {
       const p = this.screen(shot.x, shot.y),
         q = this.screen(shot.x + shot.vx * 0.05, shot.y + shot.vy * 0.05),
@@ -791,9 +960,9 @@ export class Renderer {
     // cannot hide the objective or its interaction instructions.
     if (!menu) for (const s of g.servers) {
       const p = this.screen(s.x, s.y);
-      if (p.x < -120 || p.x > WIDTH + 120 || p.y < -120 || p.y > HEIGHT + 120) continue;
+      if (p.x < 85 || p.x > WIDTH - 85 || p.y < 110 || p.y > HEIGHT - 70) continue;
       const objective = g.objectives?.[g.wave],
-        active = objective?.id === s.id && !objective.completed,
+        active = activeObjectiveId(g) === s.id && !objective.completed,
         color = active ? "#f6cf7f" : s.hp <= 0 ? "#f0a18d" : "#b7ed8e";
       this.worldTag(ctx, s.name, p.x, p.y + 31, color);
       this.rect(ctx, p.x - 23, p.y + 39, 46, 4, "#102022");
@@ -805,11 +974,31 @@ export class Renderer {
       } else if (Math.hypot(g.player.x - s.x, g.player.y - s.y) < 95 && s.hp < 100)
         this.worldTag(ctx, "[E] REPAIR", p.x, p.y - 98);
     }
+    if (!menu && g.locationId === "call_center") {
+      for (const [x, y, label] of [
+        [770, 430, "EMPLOYEE OPEN SPACE"],
+        [2145, 430, "COMMUNICATIONS ROOM"],
+        [1270, 880, "DOOR TO COMMUNICATIONS →"],
+        [1690, 880, "← DOOR TO OPEN SPACE"],
+      ]) {
+        const p = this.screen(x, y);
+        if (p.x > 20 && p.x < WIDTH - 20 && p.y > 70 && p.y < HEIGHT - 30)
+          this.worldTag(ctx, label, p.x, p.y, "#f6cf7f");
+      }
+    }
     for (const f of g.floaters) {
       const p = this.screen(f.x, f.y);
       ctx.globalAlpha = Math.min(1, f.life * 2);
       this.worldTag(ctx, f.text, p.x, p.y, f.color);
     }
+    if (g.vehicle) {
+      const ride = g.vehicle;
+      const shuttle = g.shuttles.find((s) => s.id === ride.shuttleId);
+      const position = shuttlePosition(g, shuttle);
+      const p = this.screen(position.x, position.y);
+      this.worldTag(ctx, `${ride.phase.toUpperCase()} · AZ SHUTTLE`, p.x, p.y - 70, "#f6cf7f");
+    }
+    if (!menu) this.shuttleWaypoint(ctx, g, time);
     ctx.globalAlpha = 1;
     ctx.restore();
     const bounds = this.canvas.getBoundingClientRect(),
@@ -833,7 +1022,7 @@ export class Renderer {
       viewWidth,
       HEIGHT,
     );
-    if (!menu) this.minimap(g, viewWidth);
+    if (!menu && g.banner <= 0) this.minimap(g, viewWidth);
   }
   minimap(g, viewWidth) {
     const bounds = locationFor(g.locationId) ?? { width: WORLD_WIDTH, height: WORLD_HEIGHT };
@@ -845,6 +1034,22 @@ export class Renderer {
     this.rect(ctx, mx, my, mw, mh, "#0e241ee9");
     ctx.strokeStyle = "#78936666";
     ctx.strokeRect(mx, my, mw, mh);
+    if (bounds.rooms) {
+      if (g.locationId === "datacenter") {
+        this.rect(ctx, mx, my + 1870 / bounds.height * mh, mw, 440 / bounds.height * mh, "#34464a");
+        for (const [left, right] of [[1100, 1650], [2640, 3190]])
+          this.rect(ctx, mx + left / bounds.width * mw, my, (right - left) / bounds.width * mw, mh, "#34464a");
+      }
+      ctx.strokeStyle = "#78936677";
+      for (const room of bounds.rooms)
+        ctx.strokeRect(mx + room.x / bounds.width * mw, my + room.y / bounds.height * mh,
+          room.width / bounds.width * mw, room.height / bounds.height * mh);
+      if (g.locationId === "call_center") {
+        this.text(ctx, "OPEN", mx + 33, my + 17, "#d7e6ce", 8, "center");
+        this.text(ctx, "COMMS", mx + 105, my + 17, "#d7e6ce", 8, "center");
+        this.text(ctx, "DOOR", mx + 72, my + 48, "#f6cf7f", 7, "center");
+      }
+    }
     // District boundaries make the full facility overview readable at any scale.
     for (let i = 1; i < (g.locationId ? 2 : 4); i++) {
       this.line(
@@ -880,7 +1085,7 @@ export class Renderer {
         my + (s.y / bounds.height) * mh - 3,
         6,
         6,
-        g.objectives?.[g.wave]?.id === s.id && !g.objectives[g.wave].completed
+        activeObjectiveId(g) === s.id && !g.objectives[g.wave].completed
           ? "#f6cf7f" : s.hp <= 0 ? "#d67760" : s.hp < 35 ? "#e5b06c" : "#97c77c",
       );
     this.rect(

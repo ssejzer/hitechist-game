@@ -1,20 +1,45 @@
 export class AudioSystem {
   constructor() {
-    this.enabled = false;
+    // Audio is requested on the first play gesture; browsers block autoplay
+    // before the player interacts with the page.
+    this.enabled = true;
     this.ctx = null;
     this.lastShot = 0;
+    this.playing = false;
+    this.music = new Audio(`${import.meta.env.BASE_URL}assets/music/Velocity_Breach.mp3`);
+    this.music.loop = true;
+    this.music.preload = "none";
+    // The supplied track is mastered much louder than the synthesized effects.
+    this.music.volume = 0.16;
+    this.effectsGain = null;
+    this.musicGain = null;
   }
   enable(value) {
     this.enabled = value;
     if (value) {
       try {
         this.ctx ??= new (window.AudioContext || window.webkitAudioContext)();
+        if (!this.effectsGain) {
+          this.effectsGain = this.ctx.createGain();
+          this.effectsGain.gain.value = 1;
+          this.effectsGain.connect(this.ctx.destination);
+          this.musicGain = this.ctx.createGain();
+          this.musicGain.gain.value = this.effectsGain.gain.value * 0.5;
+          this.ctx.createMediaElementSource(this.music).connect(this.musicGain);
+          this.musicGain.connect(this.ctx.destination);
+        }
         this.ctx.resume().catch(() => {});
+        if (this.playing) this.music.play().catch(() => {});
       } catch {
         this.enabled = false;
       }
-    }
+    } else this.music.pause();
     return this.enabled;
+  }
+  setPlaying(value) {
+    this.playing = value;
+    if (value && this.enabled) this.music.play().catch(() => {});
+    else this.music.pause();
   }
   tone(freq, duration = 0.1, type = "square", volume = 0.035, slide) {
     if (!this.enabled || !this.ctx) return;
@@ -28,7 +53,7 @@ export class AudioSystem {
     gain.gain.setValueAtTime(volume, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.effectsGain);
     osc.start(now);
     osc.stop(now + duration);
   }

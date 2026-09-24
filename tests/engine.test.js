@@ -113,13 +113,16 @@ test("dash cooldown prevents spam, then becomes available again", () => {
 test("pulse only hits threats in range, and clears hostile projectiles", () => {
   const g = game();
   const near = spawnEnemy(g, "bug", { x: START_X + 20, y: START_Y }),
+    expanded = spawnEnemy(g, "bug", { x: START_X + 210, y: START_Y }),
     far = spawnEnemy(g, "bug", { x: START_X + 340, y: START_Y });
   g.shots.push({ x: START_X, y: START_Y, hostile: true });
   activatePulse(g);
   assert.ok(near.hp <= 0);
+  assert.ok(expanded.hp <= 0);
+  assert.equal(g.pulses[0].radius, 240);
   assert.equal(far.hp, 32);
   assert.equal(g.shots.length, 0);
-  assert.equal(g.kills, 1);
+  assert.equal(g.kills, 2);
   assert.equal(activatePulse(g), false);
 });
 test("repair requires proximity and currency, and can revive an offline server", () => {

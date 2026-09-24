@@ -10,7 +10,7 @@ Erez, Luis, Nenad, Elad, Rotem, Tal, Jason and Aldo. All are available immediate
 with matching stats, remembered selection, roster portraits and distinct animated
 pixel characters. Character identity is included in session snapshots.
 
-## Career stages (planned)
+## Career stages
 
 | Stage | Workplace | Arcade objectives and promotion challenge |
 | --- | --- | --- |
@@ -18,7 +18,7 @@ pixel characters. Character identity is included in session snapshots.
 | Call-center IT | Employee open space and communications room | Reconnect Ethernet, clear a printer jam and activate an access card under wave pressure; protect both rooms during peak calls. |
 | Sysadmin | Two server rooms, three offices and one conference room | Restore shared services while defending equipment across six rooms; defeat a cascading infrastructure incident. |
 | Tech Lead | Multiple worldwide sites | Dispatch technicians as timed support abilities, travel via a site map and prioritize simultaneous incident waves; survive a global rollout. |
-| AWS datacenter role | Large datacenter buildings across availability zones | Drive between buildings, collect parts, defend racks and restore connectivity; contain a multi-building outage. This is a fictional arcade setting. |
+| AWS datacenter role | Large datacenter buildings across availability zones | Wait at shuttle stops and ride between buildings, collect parts, defend racks and restore connectivity; contain a multi-building outage. This is a fictional arcade setting. |
 | Manager | Meeting rooms and a team operations floor | Meetings are brief decision encounters; assign teams, collect unblockers and defend sprint deadlines against interruptions; survive release week. |
 
 Each workplace has short incident rounds and a final promotion challenge. Passing
@@ -27,7 +27,7 @@ and best ratings locally. Keep ordinary upgrades within a shift. Travel must not
 cause unavoidable losses at unattended sites: remote support and explicit grace
 periods give the player time to respond.
 
-## Technology incidents (planned)
+## Technology incidents
 
 - Okta: restart a failed provisioning chain by activating its nodes in order.
 - Active Directory: reconnect a workstation to its domain-controller beacon.
@@ -48,11 +48,11 @@ reuses movement/combat/interaction controls, and offers readable progress feedba
 1. Character roster and portraits (complete).
 2. Data-driven location bounds, rooms, doors, collision, equipment and spawn points;
    update the renderer, camera, minimap and snapshot format accordingly (complete for office and call center).
-3. Reusable arcade objectives with progress, rewards and completion (complete for station fixes; dependencies remain planned).
+3. Reusable arcade objectives with ordered station dependencies, progress, rewards and completion (complete).
 4. Small office and call center, including promotion and saved unlocks (complete).
-5. Six-room sysadmin stage and linked technology incidents.
-6. Global sites and delegation, then datacenter vehicles and travel.
-7. Management encounters and sprint objectives.
+5. Six-room sysadmin stage and linked technology incidents (complete).
+6. Global sites and delegation, then datacenter building travel (complete).
+7. Management encounters and sprint objectives (complete).
 
 Acceptance checks for later stages: objectives remain reachable, transitions clear
 old enemies and held input, saves restore the correct location, timers remain fair
@@ -61,11 +61,15 @@ fixed-tick deterministic simulation and bounded rendering caches.
 
 ## Implementation status
 
-The character roster, small-office stage, and two-room call-center stage are
-playable. Each stage has three station fixes, incident waves, upgrades, and a
-final boss. Completing the office outage unlocks call-center IT. Unlocks and best
-ratings are saved locally. The earlier datacenter simulation remains available to
-headless tests but is no longer the title-screen campaign stage.
+All six stages are playable. Each stage has three incident waves, ordered station
+objectives, upgrades, and a final boss. Winning unlocks the next workplace;
+unlocks and best ratings are saved locally. Tech Lead and AWS datacenter provide
+a site map with numbered keyboard shortcuts and touch buttons below the playfield. Remote technician
+support (R) repairs all equipment and grants eight seconds of cover; site travel
+grants five seconds of cover and clears held input. At the AWS datacenter, choosing a destination sets a route; the player walks to a shuttle stop, boards a circulating shuttle when it arrives, and exits at the selected building.
+The title screen graphs completed stages and best ratings, and doorway approaches stay clear.
+The Manager stage has faster waves and a stronger boss. The earlier datacenter
+simulation remains available to headless tests but is not a title-screen stage.
 
 No new character photos or design decisions are needed to begin. See `README.md`
 for controls and source-file roles. The game is static JavaScript and Canvas;

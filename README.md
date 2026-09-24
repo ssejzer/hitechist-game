@@ -1,16 +1,16 @@
 # ROOT ACCESS
 
-**Your IT career starts with three small-office incidents.**
+**Play through six IT career stages, from the small office to release week.**
 
 A personal arcade survival game for Sebastian “The Hitechist” Sejzer and the full engineer roster, built with JavaScript and Canvas.
 
-Move through a small office while your patch blaster handles nearby bugs. Hold E near the marked station to fix the Wi-Fi router, Windows blue-screen, and Mac headset. Collect patches, repair damaged equipment, choose upgrades between incidents, and defeat the final outage. Victory unlocks the two-room call-center stage. Unlocks, best ratings, and high score are saved in your browser.
+Move through each workplace while your patch blaster handles nearby bugs. Hold E near the marked station to complete each incident step. Collect patches, repair damaged equipment, choose upgrades between incidents, and defeat each promotion challenge. Victory unlocks the next stage. Unlocks, best ratings, and high score are saved in your browser.
 
 Choose your engineer from the title screen: Sebastian, Yaroslav, Juan Ignacio,
 Erez, Luis, Nenad, Elad, Rotem, Tal, Jason, or Aldo. Selection changes the portrait,
 animated pixel character, and player labels; all engineers share the same stats
 and abilities. Your selection is remembered locally. The career campaign
-keeps the arcade gameplay as later workplaces are added; see
+keeps the arcade gameplay across all six workplaces; see
 [the campaign plan](docs/career-campaign.md).
 
 ## Play locally
@@ -31,12 +31,16 @@ Open the local address Vite prints (normally http://localhost:5173).
 | Q                    | Sudo pulse: area damage, knockback, and projectile clearing |
 | Hold E near a marked station | Complete its fix meter for 4 patches |
 | Hold E near damaged equipment | Restore 24 integrity for 4 patches |
+| 1–3 at remote stages | Travel to a site or choose an AWS shuttle destination |
+| R at remote stages | Dispatch technicians to repair and cover all sites |
 | P / Escape           | Pause or resume                                             |
 | Enter on title       | Start a shift                                               |
 | Switch player        | End the current shift and open character selection          |
 | End shift            | Return directly to the title                                 |
 
-On phones, use the joystick and action buttons. The camera follows you through each workplace; the minimap marks the player and equipment. Call-center IT has an employee open space and communications room joined by a wide doorway.
+On phones, use the joystick and action buttons. The title screen shows a career graph with completed stages and best star ratings. The in-game HUD shows the level and current room; the minimap marks the player, equipment, and rooms. Doorway approaches stay clear of furniture. Call-center IT has an employee open space and communications room joined by a center doorway. Winning a stage selects the next unlocked level for the next shift, and the selection is remembered locally.
+
+Remote stages show travel and support controls below the playfield. At the AWS datacenter, press 1–3 or tap a destination, walk to your current building's marked shuttle stop, and stay there. A short boarding tip appears near the stop. A circulating shuttle boards you automatically when it arrives. The shuttle drives between the availability-zone buildings and grants equipment cover during the ride. The final Manager stage has faster, longer waves and a stronger promotion boss. The supplied `Velocity_Breach.mp3` plays in a loop during active shifts when sound is enabled; its audio gain is half the effects gain. Music pauses during menus, upgrades, pauses, and after a shift ends.
 
 Workplaces use deterministic 8 × 8 tile chunks with a bounded 32-chunk cache. Only nearby tiles are submitted to the renderer, cached sprites are reused, and enemies remain capped at 55. Characters and enemies have walking cycles and changing expressions; cosmetics do not alter gameplay randomness.
 

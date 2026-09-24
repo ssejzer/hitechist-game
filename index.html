@@ -54,10 +54,10 @@
               <button id="end-shift-button" class="shift-action hidden" aria-label="End shift and return to title">END SHIFT</button>
               <button
                 id="sound-button"
-                aria-label="Enable sound"
-                aria-pressed="false"
+                aria-label="Disable sound"
+                aria-pressed="true"
               >
-                SOUND OFF</button
+                SOUND ON</button
               ><button id="pause-button" disabled aria-label="Pause game">
                 Ⅱ</button
               ><button id="fullscreen-button" aria-label="Toggle fullscreen">
@@ -92,6 +92,10 @@
                 <span id="wave-label">01 / THE LEGACY STACK</span
                 ><b id="timer">00:00</b>
               </div>
+              <div class="stage-indicator" id="stage-indicator">
+                <strong id="stage-label">LEVEL 01 · SMALL OFFICE</strong>
+                <span id="room-label">WORKSPACE</span>
+              </div>
               <div class="hud-score">
                 <span>PATCHES <b id="patches">12</b></span
                 ><span>SCORE <b id="score">000000</b></span>
@@ -108,6 +112,7 @@
               <h1>ROOT<br /><span>ACCESS</span><em>_</em></h1>
               <p class="hero-description">Your IT career starts in a small office.<br />Fix three incidents. Survive the outage.</p>
               <button class="character-picker-button" id="character-button">CHOOSE CHARACTER · <span id="selected-character">Sebastian</span></button>
+              <div class="career-progress" id="career-progress"></div>
               <div class="career-select" id="career-select" aria-label="Workplace selection"></div>
               <button class="primary-button" id="start-button">
                 <span>START YOUR SHIFT</span><span>↗</span>
@@ -131,6 +136,10 @@
               ><strong id="banner-title">The legacy stack</strong>
               <p id="banner-copy">It worked on someone's machine.</p>
             </div>
+            <div class="shuttle-guide hidden" id="shuttle-guide" role="status">
+              <strong>AZ SHUTTLE</strong>
+              <span id="shuttle-guide-text">Choose a destination with 1–3.</span>
+            </div>
             <div class="ability-bar hidden" id="ability-bar">
               <span><kbd>SPACE</kbd> <b id="dash-label">DASH</b></span
               ><span><kbd>Q</kbd> <b id="pulse-label">SUDO PULSE</b></span
@@ -146,7 +155,6 @@
                 ><button id="touch-dash">DASH</button>
               </div>
             </div>
-            <div class="game-toast hidden" id="game-toast" role="status"></div>
             <div class="overlay hidden" id="pause-screen">
               <div class="modal compact">
                 <span class="eyebrow">PROCESS SUSPENDED</span>
@@ -203,6 +211,8 @@
               </div>
             </div>
           </div>
+          <div class="game-toast hidden" id="game-toast" role="status"></div>
+          <div class="site-map hidden" id="site-map" aria-label="Site travel controls"></div>
           <div class="machine-bottom">
             <span
               ><i class="green-dot"></i
@@ -282,8 +292,8 @@
       </div>
       <h2>Survive production.</h2>
       <p>
-        Choose your engineer. Repair each marked station while dodging bugs, then
-        defeat the office outage to unlock call-center IT.
+        Choose your engineer. Complete each marked incident step while dodging bugs,
+        then defeat the promotion challenge to unlock the next workplace.
       </p>
       <div class="manual-grid">
         <div>
@@ -306,20 +316,23 @@
         <div>
           <kbd>E</kbd><b>Fix / repair</b>
           <p>
-            Stand by the marked station and hold E to fill its fix meter; finishing
+            Stand by the marked station and hold E to fill its fix meter; each step
             costs 4 patches. Hold E near damaged equipment to restore integrity.
           </p>
         </div>
       </div>
       <p class="manual-tip">
         Green diamonds are patches. Pink crosses restore health. Enemies attack
-        you and your equipment. If you fall—or all three stations go down—the shift
+        you and your equipment. If you fall—or all stations go down—the shift
         is over. Pick an upgrade between incidents.
       </p>
       <p class="manual-tip">
-        On touchscreens: drag the left joystick to move; use the right action
-        buttons. Press P or Escape to pause. Your best score stays on this
-        browser.
+        At worldwide sites, press 1–3 or tap the site map to travel. At the AWS
+        datacenter, choose an AZ, walk to your building's marked shuttle stop,
+        and stay there until a shuttle arrives;
+        boarding happens automatically. Press R or tap Dispatch Support to protect every site. On
+        touchscreens, drag the left joystick and use the action buttons. Press P
+        or Escape to pause. Your best score stays on this browser.
       </p>
       <button class="primary-button" id="manual-play">
         GOT IT <span>→</span>

@@ -85,12 +85,18 @@ export const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 export const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 export const wavesFor = (g) => locationFor(g.locationId)?.waves ?? WAVES;
 export const boundsFor = (g) => locationFor(g.locationId) ?? { width: WORLD_WIDTH, height: WORLD_HEIGHT };
+export const activeObjectiveId = (g) => {
+  const objective = g.objectives?.[g.wave];
+  return objective?.steps?.[objective.step] ?? (objective?.completed ? null : objective?.id);
+};
 export function createGame(random = seededRandom(WORLD_SEED), locationId = null) {
   const location = locationFor(locationId);
   return {
     locationId: location?.id ?? null,
     objectives: location ? location.waves.map((wave) => ({
-      id: wave.objective, name: location.equipment.find((e) => e.id === wave.objective).name,
+      id: wave.objective ?? wave.steps[0],
+      name: location.equipment.find((e) => e.id === (wave.objective ?? wave.steps[0])).name,
+      steps: wave.steps ?? [wave.objective], step: 0,
       progress: 0, completed: false, reward: 500,
     })) : [],
     mode: "playing",
@@ -113,6 +119,16 @@ export function createGame(random = seededRandom(WORLD_SEED), locationId = null)
     shake: 0,
     banner: 3.5,
     repairTimer: 0,
+    travelCooldown: 0,
+    vehicle: null,
+    shuttleDestination: null,
+    shuttles: location?.id === "datacenter" ? [
+      { id: "az-shuttle-1", from: 0, direction: 1, elapsed: 2.4 },
+      { id: "az-shuttle-2", from: 1, direction: -1, elapsed: 3.2 },
+      { id: "az-shuttle-3", from: 2, direction: 1, elapsed: 1.2 },
+    ] : [],
+    supportCooldown: 0,
+    grace: 0,
     toastTimer: 0,
     bossSpawned: false,
     bossKilled: false,
@@ -203,8 +219,11 @@ export function spawnEnemy(g, type, position) {
     ({ x, y } = position);
   } else if (location) {
     const point = location.spawnPoints[side];
-    x = point.x;
-    y = point.y;
+    if (location.travel) {
+      const angle = side * Math.PI / 2 + (g.random() - 0.5) * 0.7;
+      x = clamp(g.player.x + Math.cos(angle) * 480, 160, location.width - 160);
+      y = clamp(g.player.y + Math.sin(angle) * 480, 160, location.height - 160);
+    } else { x = point.x; y = point.y; }
   } else {
     // Incidents spill into the current sector instead of marching in from a
     // distant map edge. The broader world is for exploration, not dead time.
@@ -239,7 +258,10 @@ export function spawnEnemy(g, type, position) {
     vy: 0,
   };
   if (location && type === "boss") {
-    e.hp = e.maxHp = 900;
+    e.hp = e.maxHp = location.id === "manager" ? 1500 : 900;
+  } else if (location?.id === "manager") {
+    e.hp = e.maxHp = Math.round(e.hp * 1.3);
+    e.damage = Math.round(e.damage * 1.2);
   }
   g.enemies.push(e);
   particles(g, x, y, "#da826a", 10);
@@ -297,7 +319,7 @@ export function activatePulse(g) {
   const p = g.player;
   if (g.mode !== "playing" || p.pulseCooldown > 0) return false;
   const boosted = g.upgrades.includes("pulse"),
-    radius = boosted ? 230 : 160;
+    radius = boosted ? 340 : 240;
   p.pulseCooldown = boosted ? 5 : 10;
   g.pulses.push({ x: p.x, y: p.y, radius, life: 0.55, maxLife: 0.55 });
   g.shake = 3;
@@ -317,7 +339,7 @@ export function activatePulse(g) {
 export function repair(g) {
   const objective = g.objectives?.[g.wave];
   if (objective && !objective.completed) {
-    const equipment = g.servers.find((s) => s.id === objective.id);
+    const equipment = g.servers.find((s) => s.id === activeObjectiveId(g));
     if (equipment && distance(g.player, equipment) < 115) {
       if (g.patches < 4) {
         emit(g, "toast", { text: "Need 4 patches. Collect the green diamonds." });
@@ -325,13 +347,20 @@ export function repair(g) {
       }
       objective.progress = Math.min(100, objective.progress + 25);
       if (objective.progress >= 100) {
-        objective.completed = true;
         g.patches -= 4;
         equipment.hp = 100;
-        g.score += objective.reward;
         particles(g, equipment.x, equipment.y, "#b7f58e", 18);
         floating(g, equipment.x, equipment.y - 60, "FIXED");
-        emit(g, "objective", { name: objective.name });
+        objective.step++;
+        if (objective.step >= objective.steps.length) {
+          objective.completed = true;
+          g.score += objective.reward;
+          emit(g, "objective", { name: wavesFor(g)[g.wave].name });
+        } else {
+          objective.progress = 0;
+          const next = g.servers.find((s) => s.id === activeObjectiveId(g));
+          emit(g, "toast", { text: `${equipment.name} restored. Next: ${next.name}.` });
+        }
       }
       return true;
     }
@@ -353,6 +382,92 @@ export function repair(g) {
   particles(g, node.x, node.y, "#b7f58e", 12);
   floating(g, node.x, node.y - 58, "REPAIRED");
   emit(g, "repair");
+  return true;
+}
+const SHUTTLE_DWELL = 2.1;
+const SHUTTLE_STOP_Y = 1870;
+const SHUTTLE_ROAD_Y = 2145;
+const shuttleStop = (room) => ({ x: room.x + room.width / 2, y: SHUTTLE_STOP_Y });
+export function nearestShuttleStop(g) {
+  const rooms = locationFor(g.locationId)?.rooms;
+  if (g.locationId !== "datacenter" || !rooms) return null;
+  const room = rooms.reduce((nearest, candidate) =>
+    Math.abs(candidate.x + candidate.width / 2 - g.player.x) <
+    Math.abs(nearest.x + nearest.width / 2 - g.player.x) ? candidate : nearest);
+  return { room, ...shuttleStop(room), distance: distance(g.player, shuttleStop(room)) };
+}
+const shuttleNext = (shuttle, count) => (shuttle.from + shuttle.direction + count) % count;
+const shuttleDriveTime = (from, to) => 1.2 + Math.abs(from.x - to.x) / 680;
+
+export function shuttlePosition(g, shuttle) {
+  const rooms = locationFor(g.locationId)?.rooms;
+  if (!rooms || !shuttle) return null;
+  const from = shuttleStop(rooms[shuttle.from]);
+  const to = shuttleStop(rooms[shuttleNext(shuttle, rooms.length)]);
+  const drive = shuttleDriveTime(from, to);
+  if (shuttle.elapsed < SHUTTLE_DWELL) return { ...from, facing: shuttle.direction };
+  const t = Math.min(1, (shuttle.elapsed - SHUTTLE_DWELL) / drive);
+  if (t < 0.18) return { x: from.x, y: from.y + (SHUTTLE_ROAD_Y - from.y) * t / 0.18, facing: shuttle.direction };
+  if (t > 0.82) return { x: to.x, y: SHUTTLE_ROAD_Y + (to.y - SHUTTLE_ROAD_Y) * (t - 0.82) / 0.18, facing: shuttle.direction };
+  return { x: from.x + (to.x - from.x) * (t - 0.18) / 0.64, y: SHUTTLE_ROAD_Y, facing: Math.sign(to.x - from.x) || shuttle.direction };
+}
+
+function advanceShuttles(g, dt) {
+  const rooms = locationFor(g.locationId)?.rooms;
+  if (!rooms || !g.shuttles.length) return;
+  for (const shuttle of g.shuttles) {
+    const from = shuttleStop(rooms[shuttle.from]);
+    const next = shuttleNext(shuttle, rooms.length);
+    const to = shuttleStop(rooms[next]);
+    const leg = SHUTTLE_DWELL + shuttleDriveTime(from, to);
+    shuttle.elapsed += dt;
+    if (shuttle.elapsed >= leg) {
+      shuttle.elapsed -= leg;
+      shuttle.from = next;
+      if (g.vehicle?.shuttleId === shuttle.id && g.vehicle.destinationId === rooms[next].id) {
+        g.vehicle.phase = "exiting";
+        g.vehicle.elapsed = 0;
+        g.vehicle.exitFrom = to;
+        g.vehicle.exitTo = { x: to.x, y: rooms[next].y + rooms[next].height - 180 };
+        emit(g, "toast", { text: `${rooms[next].name}: shuttle parked. Exiting now.` });
+      }
+    }
+  }
+}
+
+// Worldwide sites still fast travel. At the AWS datacenter, this only requests
+// a destination; boarding requires the player to wait at an actual shuttle stop.
+export function travel(g, roomId) {
+  const location = locationFor(g.locationId);
+  const room = location?.travel && location.rooms.find((r) => r.id === roomId);
+  if (g.mode !== "playing" || !room || g.vehicle) return false;
+  if (g.locationId === "datacenter") {
+    const current = location.rooms.find((r) => g.player.x >= r.x && g.player.x <= r.x + r.width &&
+      g.player.y >= r.y && g.player.y <= r.y + r.height);
+    if (current?.id === roomId) return false;
+    g.shuttleDestination = roomId;
+    emit(g, "toast", { text: `${room.name} selected as your shuttle destination.` });
+    return true;
+  }
+  if (g.travelCooldown > 0) return false;
+  const x = room.x + room.width / 2, y = room.y + room.height / 2;
+  if (distance(g.player, { x, y }) < 100) return false;
+  g.player.x = x;
+  g.player.y = y;
+  g.player.invincible = 3;
+  g.grace = 5;
+  emit(g, "toast", { text: `Arrived at ${room.name}. 5 seconds of site cover.` });
+  g.travelCooldown = 2;
+  g.shots = g.shots.filter((s) => !s.hostile);
+  g.enemies = g.enemies.filter((e) => distance(e, g.player) > 130);
+  return true;
+}
+export function dispatchSupport(g) {
+  if (g.mode !== "playing" || !locationFor(g.locationId)?.travel || g.supportCooldown > 0) return false;
+  for (const s of g.servers) s.hp = Math.min(100, s.hp + 35);
+  g.grace = Math.max(g.grace, 8);
+  g.supportCooldown = 24;
+  emit(g, "toast", { text: "Technicians dispatched: all sites repaired and covered for 8 seconds." });
   return true;
 }
 export function pickUpgrade(g, id) {
@@ -406,19 +521,24 @@ export function step(g, dt, input = {}) {
   g.tick++;
   g.time += dt;
   g.waveTime += dt;
+  g.travelCooldown = Math.max(0, g.travelCooldown - dt);
+  g.supportCooldown = Math.max(0, g.supportCooldown - dt);
+  g.grace = Math.max(0, g.grace - dt);
   g.banner = Math.max(0, g.banner - dt);
   g.shake = Math.max(0, g.shake - dt * 22);
+  advanceShuttles(g, dt);
   const p = g.player;
   const bounds = boundsFor(g);
   const oldX = p.x,
     oldY = p.y;
+  const driving = !!g.vehicle;
   p.dashCooldown = Math.max(0, p.dashCooldown - dt);
   p.pulseCooldown = Math.max(0, p.pulseCooldown - dt);
   p.invincible = Math.max(0, p.invincible - dt);
   p.dashTime = Math.max(0, p.dashTime - dt);
   g.repairTimer = Math.max(0, g.repairTimer - dt);
-  let mx = input.x || 0,
-    my = input.y || 0;
+  let mx = driving ? 0 : input.x || 0,
+    my = driving ? 0 : input.y || 0;
   const mag = Math.hypot(mx, my);
   if (mag > 1) {
     mx /= mag;
@@ -432,29 +552,72 @@ export function step(g, dt, input = {}) {
     p.dirX = mx;
     p.dirY = my;
   }
-  if (p.dashTime > 0) {
+  if (p.dashTime > 0 && !driving) {
     mx = p.dirX * 3.5;
     my = p.dirY * 3.5;
     particles(g, p.x, p.y, "#83bea6", 1);
   }
-  const nextX = clamp(p.x + mx * p.speed * dt, 140, bounds.width - 140);
-  const nextY = clamp(p.y + my * p.speed * dt, 140, bounds.height - 140);
-  // Rack tiles are solid; resolve each axis separately so aisle walls slide
-  // naturally instead of trapping Sebastian on diagonal movement.
-  if (!isSolidAt(nextX, p.y, 28, g.locationId)) p.x = nextX;
-  if (!isSolidAt(p.x, nextY, 28, g.locationId)) p.y = nextY;
-  // Server cabinets are solid; their interaction ring remains accessible on every side.
-  for (const s of g.servers) {
-    const d = distance(p, s);
-    if (d < 34) {
-      const dx = (p.x - s.x) / (d || 1),
-        dy = (p.y - s.y) / (d || 1);
-      p.x = s.x + dx * 34;
-      p.y = s.y + dy * 34;
-      if (d === 0) p.y += 34;
+  if (driving) {
+    const ride = g.vehicle;
+    const shuttle = g.shuttles.find((s) => s.id === ride.shuttleId);
+    const stop = shuttlePosition(g, shuttle);
+    if (ride.phase === "boarding") {
+      ride.elapsed += dt;
+      const t = Math.min(1, ride.elapsed / 0.65);
+      p.x = ride.boardFrom.x + (stop.x - ride.boardFrom.x) * t;
+      p.y = ride.boardFrom.y + (stop.y - ride.boardFrom.y) * t;
+      if (t === 1) ride.phase = "riding";
+    } else if (ride.phase === "exiting") {
+      ride.elapsed += dt;
+      const t = Math.min(1, ride.elapsed / 0.85);
+      p.x = ride.exitFrom.x + (ride.exitTo.x - ride.exitFrom.x) * t;
+      p.y = ride.exitFrom.y + (ride.exitTo.y - ride.exitFrom.y) * t;
+      if (t === 1) {
+        g.vehicle = null;
+        g.shuttleDestination = null;
+        p.invincible = Math.max(p.invincible, 3);
+        g.grace = Math.max(g.grace, 5);
+        emit(g, "toast", { text: "Arrived. 5 seconds of site cover remain." });
+      }
+    } else {
+      p.x = stop.x;
+      p.y = stop.y;
     }
-    if (g.upgrades.includes("repair")) s.hp = Math.min(100, s.hp + dt * 1.2);
+  } else {
+    const nextX = clamp(p.x + mx * p.speed * dt, 140, bounds.width - 140);
+    const nextY = clamp(p.y + my * p.speed * dt, 140, bounds.height - 140);
+    if (!isSolidAt(nextX, p.y, 28, g.locationId)) p.x = nextX;
+    if (!isSolidAt(p.x, nextY, 28, g.locationId)) p.y = nextY;
+    for (const s of g.servers) {
+      const d = distance(p, s);
+      if (d < 34) {
+        const dx = (p.x - s.x) / (d || 1),
+          dy = (p.y - s.y) / (d || 1);
+        p.x = s.x + dx * 34;
+        p.y = s.y + dy * 34;
+        if (d === 0) p.y += 34;
+      }
+    }
+    if (g.locationId === "datacenter" && g.shuttleDestination) {
+      const rooms = locationFor(g.locationId).rooms;
+      const stopIndex = rooms.findIndex((room) => distance(p, shuttleStop(room)) < 150);
+      if (stopIndex >= 0 && rooms[stopIndex].id !== g.shuttleDestination) {
+        const shuttle = g.shuttles.find((s) => s.from === stopIndex && s.elapsed < SHUTTLE_DWELL - 0.7);
+        if (shuttle) {
+          g.vehicle = {
+            shuttleId: shuttle.id, destinationId: g.shuttleDestination,
+            phase: "boarding", elapsed: 0, boardFrom: { x: p.x, y: p.y },
+          };
+          g.grace = Math.max(g.grace, 22);
+          p.invincible = Math.max(p.invincible, 22);
+          g.shots = g.shots.filter((shot) => !shot.hostile);
+          emit(g, "toast", { text: `Boarding shuttle to ${rooms.find((room) => room.id === g.shuttleDestination).name}.` });
+        }
+      }
+    }
   }
+  if (g.upgrades.includes("repair"))
+    for (const s of g.servers) s.hp = Math.min(100, s.hp + dt * 1.2);
   const movedX = p.x - oldX,
     movedY = p.y - oldY;
   const screenDistance = Math.hypot(
@@ -464,7 +627,7 @@ export function step(g, dt, input = {}) {
   p.moving = screenDistance > 0.001;
   p.walkPhase += screenDistance / 8;
   if (Math.abs(movedX - movedY) > 0.001) p.facing = Math.sign(movedX - movedY);
-  if (input.repair && g.repairTimer === 0) {
+  if (!driving && input.repair && g.repairTimer === 0) {
     repair(g);
     g.repairTimer = 0.65;
   }
@@ -488,9 +651,9 @@ export function step(g, dt, input = {}) {
   if (g.wave === 2 && g.waveTime >= wavesFor(g)[2].duration && !g.bossSpawned &&
       (!g.objectives.length || g.objectives[2].completed)) {
     g.bossSpawned = true;
-    spawnEnemy(g, "boss", g.locationId ? undefined : {
-      x: clamp(p.x + 350, 70, WORLD_WIDTH - 70),
-      y: clamp(p.y - 450, 70, WORLD_HEIGHT - 70),
+    spawnEnemy(g, "boss", {
+      x: clamp(p.x + 350, 160, bounds.width - 160),
+      y: clamp(p.y - 350, 160, bounds.height - 160),
     });
     g.banner = 3;
     emit(g, "boss");
@@ -499,7 +662,7 @@ export function step(g, dt, input = {}) {
   const targets = g.enemies
     .filter((e) => e.hp > 0 && distance(e, p) < 720)
     .sort((a, b) => distance(a, p) - distance(b, p));
-  if (p.fireTimer <= 0 && targets.length) {
+  if (!driving && p.fireTimer <= 0 && targets.length) {
     const target = targets[0],
       a = Math.atan2(target.y - p.y, target.x - p.x);
     for (const offset of g.upgrades.includes("multishot")
@@ -528,8 +691,11 @@ export function step(g, dt, input = {}) {
     e.phase += dt;
     const liveServers = g.servers.filter((s) => s.hp > 0);
     let target = p;
-    if (e.target === "server" && liveServers.length && e.type !== "boss")
-      target = liveServers.sort((a, b) => distance(a, e) - distance(b, e))[0];
+    if (e.target === "server" && liveServers.length && e.type !== "boss") {
+      const nearby = locationFor(g.locationId)?.travel
+        ? liveServers.filter((s) => distance(s, p) < 600) : liveServers;
+      if (nearby.length) target = nearby.sort((a, b) => distance(a, e) - distance(b, e))[0];
+    }
     const d = distance(e, target),
       dx = (target.x - e.x) / (d || 1),
       dy = (target.y - e.y) / (d || 1);
@@ -554,7 +720,7 @@ export function step(g, dt, input = {}) {
     e.vy *= Math.max(0, 1 - dt * 8);
     if (d < (target === p ? e.r + 14 : 50) && e.attack === 0) {
       if (target === p) hurtPlayer(g, e.damage);
-      else {
+      else if (g.grace <= 0) {
         target.hp = Math.max(0, target.hp - e.damage * 0.7);
         particles(g, target.x, target.y - 20, "#f1a56e", 4);
         if (target.hp === 0) {

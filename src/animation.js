@@ -19,11 +19,13 @@ export function expressionFor(actor, time) {
 }
 
 export function gaitFor(actor, time) {
-  const phase = actor.walkPhase ?? 0;
+  const phase = (actor.walkPhase ?? 0) * 0.65;
   const swing = actor.moving ? Math.sin(phase) : 0;
   return {
     swing,
     opposite: -swing,
+    step: actor.moving ? Math.cos(phase) : 0,
+    lean: actor.moving ? Math.sin(phase) * 0.7 : 0,
     bob: actor.moving
       ? -Math.abs(swing) * 2
       : Math.sin(time * 2 + (Number(actor.id) || 0)) * 0.35,

@@ -3,6 +3,8 @@ import {
   step,
   activateDash,
   activatePulse,
+  travel,
+  dispatchSupport,
   pickUpgrade,
   upgradeChoices,
   UPGRADES,
@@ -70,6 +72,14 @@ export class LocalSession {
       return false;
     return this.setInput({ ...this.input, [type]: true });
   }
+  travel(roomId) {
+    const moved = travel(this.state, roomId);
+    if (moved) this.clearInput();
+    return moved;
+  }
+  dispatchSupport() {
+    return dispatchSupport(this.state);
+  }
   clearInput() {
     this.input = { x: 0, y: 0, repair: false };
     this.pending = { dash: false, pulse: false };
@@ -82,7 +92,9 @@ export class LocalSession {
   }
   chooseUpgrade(id) {
     if (!this.state.upgradeOptions.includes(id)) return false;
-    return pickUpgrade(this.state, id);
+    if (!pickUpgrade(this.state, id)) return false;
+    this.clearInput();
+    return true;
   }
   advance(elapsed) {
     if (!Number.isFinite(elapsed) || elapsed < 0) return;

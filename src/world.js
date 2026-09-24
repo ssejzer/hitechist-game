@@ -34,16 +34,36 @@ export function blockAt(col, row, locationId = null) {
     const cols = Math.ceil(location.width / TILE), rows = Math.ceil(location.height / TILE);
     if (col < 0 || row < 0 || col >= cols || row >= rows) return "void";
     if (col === 0 || row === 0 || col === cols - 1 || row === rows - 1) return "edge";
-    // Two open rooms are divided by a partition with a wide, marked doorway.
-    if (location.rooms.length > 1 && col === 13 &&
-        !location.doors.some((door) =>
-          Math.abs(door.x - (col + 0.5) * TILE) < TILE &&
-          Math.abs(door.y - (row + 0.5) * TILE) <= TILE * 1.5))
+    const x = (col + 0.5) * TILE, y = (row + 0.5) * TILE;
+    if (location.id === "datacenter") {
+      const room = location.rooms.find((r) => x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height);
+      if (!room) {
+        const betweenBuildings = x >= 1100 && x < 3190 &&
+          !location.rooms.some((r) => x >= r.x && x < r.x + r.width);
+        return y >= 1870 || betweenBuildings ? "road" : "yard";
+      }
+      const atWall = x - room.x < TILE || room.x + room.width - x <= TILE ||
+        y - room.y < TILE || room.y + room.height - y <= TILE;
+      if (atWall) {
+        const entrance = Math.abs(x - (room.x + room.width / 2)) <= TILE && y > room.y + room.height - TILE * 1.5;
+        return entrance ? "walkway" : "edge";
+      }
+      if (Math.abs(x - (room.x + room.width / 2)) <= TILE || y > room.y + room.height - TILE * 2.5)
+        return "walkway";
+    }
+    if (location.rooms.length > 1 &&
+        !location.rooms.some((room) => x >= room.x && x <= room.x + room.width && y >= room.y && y <= room.y + room.height) &&
+        !location.doors.some((door) => Math.abs(door.x - x) <= TILE * 0.7 && Math.abs(door.y - y) <= TILE * 2))
       return "edge";
+    // Keep both approaches to each doorway free of desks and racks.
+    if (location.doors.some((door) => Math.abs(door.x - x) <= TILE * 2.5 && Math.abs(door.y - y) <= TILE * 1.6))
+      return "walkway";
     if ((col + row * 3) % 11 === 0 && row > 2 && row < rows - 2 &&
         !location.equipment.some((e) => Math.hypot(e.x - (col + 0.5) * TILE, e.y - (row + 0.5) * TILE) < 175))
-      return "office-desk";
-    return (col + row) % 5 === 0 ? "walkway" : "office-floor";
+      return ["sysadmin", "datacenter"].includes(location.id) ? "compute-rack" : "office-desk";
+    if ((col + row) % 5 === 0) return "walkway";
+    if (location.id === "call_center" && x >= 1540) return "comms-floor";
+    return ({ sysadmin: "server-floor", tech_lead: "site-floor", datacenter: "datacenter-floor", manager: "manager-floor" })[location.id] || "office-floor";
   }
   if (col < 0 || row < 0 || col >= WORLD_COLS || row >= WORLD_ROWS)
     return "void";
