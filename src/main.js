@@ -5,6 +5,7 @@ import { Renderer } from "./renderer.js";
 import { AudioSystem } from "./audio.js";
 import { LocalSession } from "./session.js";
 import { CHARACTERS, getCharacter, portraitPath } from "./characters.js";
+import { createBystanders } from "./bystanders.js";
 const $ = (id) => document.getElementById(id);
 if (navigator.maxTouchPoints > 0)
   document.querySelector(".arcade").classList.add("touch-device");
@@ -78,7 +79,10 @@ const characterPortrait = (character) => `${import.meta.env.BASE_URL}${portraitP
 function selectCharacter(id) {
   const character = getCharacter(id);
   selectedCharacter = character.id;
-  game.player.characterId = character.id;
+  if (game.player.characterId !== character.id) {
+    game.player.characterId = character.id;
+    if (menu) game.bystanders = createBystanders(game);
+  }
   $("selected-character").textContent = character.name;
   $("player-name").textContent = character.name.toUpperCase();
   $("character-tag-name").textContent = character.name.toUpperCase();
@@ -117,7 +121,7 @@ const scoreText = (n) => String(Math.floor(n)).padStart(6, "0");
 const show = (id, visible) => $(id).classList.toggle("hidden", !visible);
 $("best-label").innerHTML = `LOCAL HIGH SCORE <b>${scoreText(best)}</b>`;
 function menuScene() {
-  game = createGame(undefined, selectedLocation);
+  game = createGame(undefined, selectedLocation, selectedCharacter);
   selectCharacter(selectedCharacter);
   $("scene-tag").firstElementChild.nextSibling.textContent = ` ${locationFor(selectedLocation).name} `;
   game.enemies = [];

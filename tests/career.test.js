@@ -4,6 +4,38 @@ import { LOCATIONS } from "../src/career.js";
 import { createGame, step, repair, pickUpgrade, spawnEnemy, damageEnemy, activeObjectiveId } from "../src/engine.js";
 import { isSolidAt, blockAt } from "../src/world.js";
 import { LocalSession } from "../src/session.js";
+import { CHARACTERS } from "../src/characters.js";
+
+test("career bystanders grow by level and the fifth level includes the whole roster", () => {
+  const expected = { office: 0, call_center: 1, sysadmin: 2, tech_lead: 4, datacenter: 10, manager: 10 };
+  for (const [locationId, count] of Object.entries(expected)) {
+    const g = new LocalSession({ seed: 38, characterId: "erez", locationId }).state;
+    assert.equal(g.bystanders.length, count, locationId);
+    assert.equal(new Set(g.bystanders.map((p) => p.characterId)).size, count);
+    assert.ok(g.bystanders.every((p) => p.characterId !== g.player.characterId));
+    assert.ok(g.bystanders.every((p) => !isSolidAt(p.x, p.y, 28, locationId)));
+    assert.ok(g.bystanders.filter((p) => p.roaming).length <= 6 || locationId === "manager");
+  }
+  const levelFive = new LocalSession({ seed: 38, locationId: "datacenter" }).state;
+  assert.deepEqual(new Set(levelFive.bystanders.map((p) => p.characterId)),
+    new Set(CHARACTERS.filter((c) => c.id !== "sebastian").map((c) => c.id)));
+  assert.equal(levelFive.bystanders.filter((p) => p.roaming).length, 6);
+  assert.equal(levelFive.bystanders.find((p) => p.characterId === "tal").roaming, false);
+});
+
+test("bystanders wander and their state survives a snapshot", () => {
+  const session = new LocalSession({ seed: 17, locationId: "datacenter" });
+  const initial = session.state.bystanders.map(({ x, y }) => ({ x, y }));
+  session.state.spawnTimer = 1000;
+  for (let i = 0; i < 120; i++) session.advance(1 / 60);
+  assert.ok(session.state.bystanders.some((p, i) => p.roaming &&
+    Math.hypot(p.x - initial[i].x, p.y - initial[i].y) > 2));
+  const restored = LocalSession.fromSnapshot(session.snapshot());
+  assert.deepEqual(restored.state.bystanders, session.state.bystanders);
+  session.advance(1 / 60);
+  restored.advance(1 / 60);
+  assert.deepEqual(restored.state.bystanders, session.state.bystanders);
+});
 
 test("career stations and both call-center rooms can be reached from their entrance", () => {
   for (const location of Object.values(LOCATIONS)) {

@@ -30,6 +30,8 @@ export class Renderer {
       image.src = `${import.meta.env.BASE_URL}assets/companions/${kind === "dog" ? "elad-dog" : "nenad-cat"}.png`;
       this.companions.set(kind, image);
     }
+    this.talScene = new Image();
+    this.talScene.src = `${import.meta.env.BASE_URL}assets/characters/tal-assistant-scene.png`;
     this.pet = null;
     this.world = new WorldChunks();
     this.tiles = [];
@@ -462,7 +464,7 @@ export class Renderer {
     );
     this.rackBlock(ctx, x, y, time, false, hp, rackKind);
   }
-  player(ctx, p, time) {
+  player(ctx, p, time, bystander = false) {
     ctx.save();
     const gait = gaitFor(p, time),
       expression = expressionFor(p, time);
@@ -474,7 +476,7 @@ export class Renderer {
     ctx.fill();
     ctx.scale(p.facing ?? 1, 1);
     const character = getCharacter(p.characterId);
-    this.lastRenderedCharacter = character.id;
+    if (!bystander) this.lastRenderedCharacter = character.id;
     const y = Math.round(-63 + gait.bob);
     const legWidth = character.build === "slim" ? 5 : character.build === "broad" ? 9 : 7;
     const hip = character.build === "broad" ? 9 : 6;
@@ -488,7 +490,7 @@ export class Renderer {
       this.rect(ctx, foot[0] - legWidth / 2, foot[1] + 2, legWidth + 4, 1, "#a7b5b2");
     }
     this.engineer(ctx, character, y, gait, expression);
-    if (character.smoking) {
+    if (character.smoking || (bystander && character.id === "erez")) {
       this.rect(ctx, 7, -46 + gait.bob, 19, 5, "#132328");
       this.rect(ctx, 8, -45 + gait.bob, 14, 3, "#f1e6cf");
       this.rect(ctx, 22, -45 + gait.bob, 4, 3, "#ed936b");
@@ -500,6 +502,22 @@ export class Renderer {
       ctx.globalAlpha = p.invincible > 0 && Math.sin(time * 40) > 0 ? 0.5 : 1;
     }
     ctx.restore();
+  }
+  bystander(ctx, person, time) {
+    if (person.characterId === "tal") {
+      if (this.talScene.complete && this.talScene.naturalWidth) {
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(this.talScene, Math.round(person.x - 108), Math.round(person.y - 164), 216, 164);
+        ctx.restore();
+        const speaking = Math.floor(time / 2.4) % 2;
+        const bubbleX = person.x + (speaking ? 63 : -70);
+        const bubbleY = person.y - (speaking ? 137 : 125);
+        this.worldTag(ctx, speaking ? "•••" : "...", bubbleX, bubbleY, "#f6cf7f");
+      }
+      return;
+    }
+    this.player(ctx, person, time, true);
   }
   shuttle(ctx, p, time) {
     ctx.save();
@@ -829,6 +847,7 @@ export class Renderer {
         .map((t) => ({ ...t, kind: "prop" })),
       ...g.servers.map((s) => ({ ...s, kind: "server" })),
       ...g.enemies.map((e) => ({ ...e, kind: "enemy" })),
+      ...(g.bystanders ?? []).map((person) => ({ ...person, kind: "bystander" })),
       ...g.shuttles.map((s) => ({ ...shuttlePosition(g, s), id: s.id, kind: "shuttle" })),
       ...(companion ? [companion] : []),
       { ...g.player, kind: "player" },
@@ -895,6 +914,7 @@ export class Renderer {
       }
       else if (entity.kind === "shuttle") this.shuttle(ctx, p, time);
       else if (entity.kind === "companion") this.drawCompanion(ctx, p, time);
+      else if (entity.kind === "bystander") this.bystander(ctx, p, time);
       else if (entity.kind === "player") {
         if (!g.vehicle) this.player(ctx, p, time);
       }

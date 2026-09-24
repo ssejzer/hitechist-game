@@ -25,8 +25,7 @@ import {
 export class LocalSession {
   constructor({ seed = WORLD_SEED, characterId = "sebastian", locationId = "office" } = {}) {
     this.seed = seed >>> 0;
-    this.state = createGame(seededRandom(this.seed), locationId);
-    this.state.player.characterId = getCharacter(characterId).id;
+    this.state = createGame(seededRandom(this.seed), locationId, getCharacter(characterId).id);
     this.accumulator = 0;
     this.lastSequence = -1;
     this.input = { x: 0, y: 0, repair: false };

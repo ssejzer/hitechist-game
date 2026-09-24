@@ -2,6 +2,7 @@ import { WORLD_WIDTH, WORLD_HEIGHT, WORLD_SEED } from "./config.js";
 import { isSolidAt } from "./world.js";
 import { locationFor } from "./career.js";
 import { seededRandom } from "./random.js";
+import { createBystanders, advanceBystanders } from "./bystanders.js";
 export { WORLD_WIDTH, WORLD_HEIGHT } from "./config.js";
 export const WIDTH = 1120,
   HEIGHT = 620;
@@ -89,9 +90,9 @@ export const activeObjectiveId = (g) => {
   const objective = g.objectives?.[g.wave];
   return objective?.steps?.[objective.step] ?? (objective?.completed ? null : objective?.id);
 };
-export function createGame(random = seededRandom(WORLD_SEED), locationId = null) {
+export function createGame(random = seededRandom(WORLD_SEED), locationId = null, characterId = "sebastian") {
   const location = locationFor(locationId);
-  return {
+  const game = {
     locationId: location?.id ?? null,
     objectives: location ? location.waves.map((wave) => ({
       id: wave.objective ?? wave.steps[0],
@@ -115,6 +116,7 @@ export function createGame(random = seededRandom(WORLD_SEED), locationId = null)
     particles: [],
     floaters: [],
     pulses: [],
+    bystanders: [],
     events: [],
     shake: 0,
     banner: 3.5,
@@ -137,7 +139,7 @@ export function createGame(random = seededRandom(WORLD_SEED), locationId = null)
     nextId: 1,
     player: {
       id: "player-1",
-      characterId: "sebastian",
+      characterId,
       walkPhase: 0,
       facing: 1,
       x: location?.start.x ?? WORLD_WIDTH / 2,
@@ -188,6 +190,8 @@ export function createGame(random = seededRandom(WORLD_SEED), locationId = null)
       },
     ],
   };
+  game.bystanders = createBystanders(game);
+  return game;
 }
 export function emit(g, type, data = {}) {
   g.events.push({ type, ...data });
@@ -527,6 +531,7 @@ export function step(g, dt, input = {}) {
   g.banner = Math.max(0, g.banner - dt);
   g.shake = Math.max(0, g.shake - dt * 22);
   advanceShuttles(g, dt);
+  advanceBystanders(g, dt);
   const p = g.player;
   const bounds = boundsFor(g);
   const oldX = p.x,
