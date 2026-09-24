@@ -1,5 +1,6 @@
 import "./style.css";
-import { createGame, WAVES } from "./engine.js";
+import { createGame, wavesFor } from "./engine.js";
+import { LOCATIONS, locationFor } from "./career.js";
 import { Renderer } from "./renderer.js";
 import { AudioSystem } from "./audio.js";
 import { LocalSession } from "./session.js";
@@ -21,10 +22,33 @@ let joystick = { x: 0, y: 0 },
   previousMode = null;
 let best = 0;
 let selectedCharacter = "sebastian";
+let selectedLocation = "office";
+let career = { unlocked: ["office"], ratings: {} };
 try {
   best = Number(localStorage.getItem("hitechist-root-access-best")) || 0;
   selectedCharacter = getCharacter(localStorage.getItem("hitechist-root-access-character")).id;
+  const saved = JSON.parse(localStorage.getItem("hitechist-root-access-career") || "null");
+  if (saved && Array.isArray(saved.unlocked) && saved.ratings && typeof saved.ratings === "object") {
+    career.unlocked = ["office", ...saved.unlocked.filter((id) => id === "call_center")];
+    career.ratings = saved.ratings;
+  }
 } catch {}
+function renderCareer() {
+  const holder = $("career-select");
+  holder.replaceChildren();
+  for (const location of Object.values(LOCATIONS)) {
+    const button = document.createElement("button");
+    const unlocked = career.unlocked.includes(location.id);
+    button.type = "button";
+    button.disabled = !unlocked;
+    button.className = "career-location";
+    button.setAttribute("aria-pressed", String(selectedLocation === location.id));
+    button.textContent = `${location.name} · ${unlocked ? (career.ratings[location.id] ? "★".repeat(career.ratings[location.id]) : "READY") : "LOCKED"}`;
+    button.addEventListener("click", () => { selectedLocation = location.id; renderCareer(); menuScene(); });
+    holder.append(button);
+  }
+}
+renderCareer();
 const characterPortrait = (character) => `${import.meta.env.BASE_URL}${portraitPath(character)}`;
 function selectCharacter(id) {
   const character = getCharacter(id);
@@ -68,34 +92,13 @@ const scoreText = (n) => String(Math.floor(n)).padStart(6, "0");
 const show = (id, visible) => $(id).classList.toggle("hidden", !visible);
 $("best-label").innerHTML = `LOCAL HIGH SCORE <b>${scoreText(best)}</b>`;
 function menuScene() {
-  game = createGame();
+  game = createGame(undefined, selectedLocation);
   selectCharacter(selectedCharacter);
-  game.player.x = 1770;
-  game.player.y = 960;
-  game.servers[0].x = 1040;
-  game.servers[0].y = 760;
-  game.servers[1].x = 1650;
-  game.servers[1].y = 550;
-  game.servers[2].x = 2300;
-  game.servers[2].y = 1300;
-  game.enemies = [
-    { id: 1, type: "bug", x: 2050, y: 1120, hp: 32, maxHp: 32, r: 12, hit: 0 },
-    { id: 2, type: "bug", x: 1460, y: 900, hp: 32, maxHp: 32, r: 12, hit: 0 },
-    {
-      id: 3,
-      type: "runner",
-      x: 2050,
-      y: 640,
-      hp: 24,
-      maxHp: 24,
-      r: 10,
-      hit: 0,
-    },
-  ];
+  $("scene-tag").firstElementChild.nextSibling.textContent = ` ${locationFor(selectedLocation).name} `;
+  game.enemies = [];
   game.drops = [
-    { x: 1710, y: 1090, type: "patch", life: 100 },
-    { x: 1775, y: 1120, type: "patch", life: 100 },
-    { x: 2070, y: 1050, type: "patch", life: 100 },
+    { x: game.player.x - 80, y: game.player.y + 100, type: "patch", life: 100 },
+    { x: game.player.x + 80, y: game.player.y + 100, type: "patch", life: 100 },
   ];
 }
 function start() {
@@ -103,6 +106,7 @@ function start() {
   session = new LocalSession({
     seed: crypto.getRandomValues(new Uint32Array(1))[0],
     characterId: selectedCharacter,
+    locationId: selectedLocation,
   });
   game = session.state;
   // A new shift begins at the centre of the full facility, not at the menu's
@@ -111,6 +115,7 @@ function start() {
   menu = false;
   keys.clear();
   joystick = { x: 0, y: 0 };
+  touchRepair = false;
   document.querySelector(".arcade").classList.add("playing");
   for (const id of [
     "start-screen",
@@ -129,11 +134,17 @@ function start() {
   canvas.focus({ preventScroll: true });
   $("status-text").textContent =
     "SHIFT STARTED. LET AUTOMATION DO THE SHOOTING.";
-  $("terminal-title").textContent = `${selectedCharacter}@production:~ / sudo survive`;
+  $("terminal-title").textContent = `${selectedCharacter}@${selectedLocation}:~ / sudo survive`;
+  $("scene-tag").firstElementChild.nextSibling.textContent = ` ${locationFor(selectedLocation).name} `;
+  $("server-status").replaceChildren(...game.servers.map((s) => {
+    const item = document.createElement("span");
+    item.innerHTML = `${({ wifi: "WI-FI", windows: "WIN", mac: "MAC", ethernet: "ETH", printer: "PRINT", access: "CARD" })[s.id] || s.name} <b>100</b>`;
+    return item;
+  }));
   toast(
     navigator.maxTouchPoints > 0
-      ? "Drag the joystick to move. Auto-fire is on. Protect your servers."
-      : "Move with WASD / arrows. Auto-fire is on. Keep your servers alive.",
+      ? "Drag the joystick to move. Hold REPAIR beside the marked station."
+      : "Move with WASD / arrows. Hold E beside the marked station.",
     4,
   );
 }
@@ -142,6 +153,7 @@ function home() {
   menuScene();
   keys.clear();
   joystick = { x: 0, y: 0 };
+  touchRepair = false;
   document.querySelector(".arcade").classList.remove("playing");
   for (const id of [
     "hud",
@@ -165,18 +177,19 @@ function home() {
   $("status-text").textContent = "ALL SYSTEMS SUSPICIOUSLY OPERATIONAL";
   $("terminal-title").textContent = `${selectedCharacter}@production:~ / root-access`;
   $("best-label").innerHTML = `LOCAL HIGH SCORE <b>${scoreText(best)}</b>`;
+  renderCareer();
   $("start-button").focus({ preventScroll: true });
 }
 function banner() {
-  const wave = WAVES[game.wave];
+  const wave = wavesFor(game)[game.wave];
   $("banner-kicker").textContent = game.bossSpawned
     ? "CRITICAL INCIDENT"
     : `INCIDENT 0${game.wave + 1}`;
   $("banner-title").textContent = game.bossSpawned
-    ? "“Just one small change.”"
+    ? "OFFICE OUTAGE"
     : wave.name;
   $("banner-copy").textContent = game.bossSpawned
-    ? "Defeat the Friday Deploy. Then go home."
+    ? "Defeat the outage to earn your promotion."
     : wave.tagline;
 }
 function toast(text, seconds = 2.7) {
@@ -220,7 +233,7 @@ function showUpgrades() {
         show("upgrade-screen", false);
         keys.clear();
         canvas.focus({ preventScroll: true });
-        toast(`${u.name} installed. Production says gracias.`, 3);
+        toast(`${u.name} installed. Back to the incident.`, 3);
       }
     });
     button.setAttribute("aria-label", `Choose ${u.name}: ${u.description}`);
@@ -234,6 +247,14 @@ function showUpgrades() {
     `INCIDENT 0${game.wave + 1} CONTAINED. CHOOSE YOUR NEXT ADVANTAGE.`;
 }
 function end(event) {
+  if (event.won && game.locationId) {
+    const next = locationFor(game.locationId)?.next;
+    if (next && !career.unlocked.includes(next)) career.unlocked.push(next);
+    const rating = game.player.hp >= 70 && game.servers.every((s) => s.hp >= 50)
+      ? 3 : game.player.hp >= 35 ? 2 : 1;
+    career.ratings[game.locationId] = Math.max(career.ratings[game.locationId] || 0, rating);
+    try { localStorage.setItem("hitechist-root-access-career", JSON.stringify(career)); } catch {}
+  }
   const record = game.score > best;
   if (record) {
     best = game.score;
@@ -251,15 +272,15 @@ function end(event) {
     : characterPortrait(character);
   $("end-avatar").alt = character.name;
   $("end-kicker").textContent = event.won
-    ? "ALL INCIDENTS RESOLVED"
+    ? "PROMOTION EARNED"
     : "POST-MORTEM REQUIRED";
   $("end-title").innerHTML = event.won
-    ? "Go touch grass<span>.</span>"
+    ? "Shift complete<span>.</span>"
     : "Well, that escalated<span>.</span>";
   $("end-copy").textContent = event.won
-    ? `Production is alive. Your phone is finally quiet. Go enjoy the sunrise, ${character.name}.`
+    ? `${character.name} contained the ${locationFor(game.locationId)?.name.toLowerCase()} outage.${locationFor(game.locationId)?.next ? " Call-center IT is unlocked." : " All calls are back online."}`
     : event.reason === "servers"
-      ? "All three servers went down. Collect patches and hold E nearby to bring them back."
+      ? "All three stations went down. Collect patches and hold E nearby to repair them."
       : "Your shift ended early. Keep moving, dash through trouble, and use your sudo pulse.";
   $("end-score").textContent = scoreText(game.score);
   $("end-kills").textContent = game.kills;
@@ -268,7 +289,7 @@ function end(event) {
     ? "↗ NEW LOCAL HIGH SCORE"
     : `LOCAL HIGH SCORE: ${scoreText(best)}`;
   $("status-text").textContent = event.won
-    ? "EXIT CODE 0. HUMAN > INFRASTRUCTURE."
+    ? "EXIT CODE 0. SHIFT COMPLETE."
     : "EXIT CODE 1. BLAMELESS POST-MORTEM INCOMING.";
   $("pause-button").disabled = true;
   audio.play(event.won ? "won" : "lost");
@@ -281,7 +302,8 @@ function updateHud() {
   $("health-bar").style.background = p.hp < 30 ? "#e99479" : "#b7f58e";
   $("patches").textContent = game.patches;
   $("score").textContent = scoreText(game.score);
-  $("wave-label").textContent = `0${game.wave + 1} / ${WAVES[game.wave].name}`;
+  const objective = game.objectives?.[game.wave];
+  $("wave-label").textContent = `0${game.wave + 1} / ${wavesFor(game)[game.wave].name}${objective ? ` · ${objective.completed ? "FIXED" : `${Math.round(objective.progress)}%`}` : ""}`;
   $("timer").textContent = formatTime(game.time);
   $("dash-label").textContent =
     p.dashCooldown > 0 ? `${p.dashCooldown.toFixed(1)}s` : "DASH";
@@ -313,16 +335,17 @@ function processEvents() {
     if (e.type === "wave") {
       banner();
       $("status-text").textContent =
-        `INCIDENT 0${game.wave + 1} / ${WAVES[game.wave].name} — KEEP THE LIGHTS ON.`;
+        `INCIDENT 0${game.wave + 1} / ${wavesFor(game)[game.wave].name} — FIX THE MARKED STATION.`;
     }
     if (e.type === "boss") {
       banner();
-      toast("Friday Deploy is live. Keep moving between the projectiles.", 4);
+      toast("The outage is live. Keep moving between the projectiles.", 4);
       $("status-text").textContent =
-        "CRITICAL: UNREVIEWED CHANGES IN PRODUCTION.";
+        "CRITICAL: CONTAIN THE OUTAGE.";
     }
     if (e.type === "server-down")
       toast(`${e.name} is offline! Stand nearby and hold E to recover.`, 4);
+    if (e.type === "objective") toast(`${e.name} fixed. Survive the incident wave.`, 3);
     if (e.type === "end") end(e);
   }
 }

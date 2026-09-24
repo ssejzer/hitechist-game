@@ -1,4 +1,5 @@
 import { WORLD_HEIGHT, WORLD_WIDTH, WORLD_SEED } from "./config.js";
+import { locationFor } from "./career.js";
 
 export const TILE = 110;
 export const WORLD_COLS = Math.ceil(WORLD_WIDTH / TILE);
@@ -13,7 +14,7 @@ const inRect = (col, row, x, y, width, height) =>
 
 export const isRack = (type) => type.endsWith("-rack");
 
-export function isSolidAt(x, y, radius = 28) {
+export function isSolidAt(x, y, radius = 28, locationId = null) {
   return [
     [0, 0],
     [radius, 0],
@@ -21,12 +22,29 @@ export function isSolidAt(x, y, radius = 28) {
     [0, radius],
     [0, -radius],
   ].some(([dx, dy]) =>
-    isRack(blockAt(Math.floor((x + dx) / TILE), Math.floor((y + dy) / TILE))),
+    isRack(blockAt(Math.floor((x + dx) / TILE), Math.floor((y + dy) / TILE), locationId)) ||
+    ["office-desk", "edge"].includes(blockAt(Math.floor((x + dx) / TILE), Math.floor((y + dy) / TILE), locationId)) && !!locationFor(locationId),
   );
 }
 
 /** A reusable deterministic building block. New floors only need a new layout. */
-export function blockAt(col, row) {
+export function blockAt(col, row, locationId = null) {
+  const location = locationFor(locationId);
+  if (location) {
+    const cols = Math.ceil(location.width / TILE), rows = Math.ceil(location.height / TILE);
+    if (col < 0 || row < 0 || col >= cols || row >= rows) return "void";
+    if (col === 0 || row === 0 || col === cols - 1 || row === rows - 1) return "edge";
+    // Two open rooms are divided by a partition with a wide, marked doorway.
+    if (location.rooms.length > 1 && col === 13 &&
+        !location.doors.some((door) =>
+          Math.abs(door.x - (col + 0.5) * TILE) < TILE &&
+          Math.abs(door.y - (row + 0.5) * TILE) <= TILE * 1.5))
+      return "edge";
+    if ((col + row * 3) % 11 === 0 && row > 2 && row < rows - 2 &&
+        !location.equipment.some((e) => Math.hypot(e.x - (col + 0.5) * TILE, e.y - (row + 0.5) * TILE) < 175))
+      return "office-desk";
+    return (col + row) % 5 === 0 ? "walkway" : "office-floor";
+  }
   if (col < 0 || row < 0 || col >= WORLD_COLS || row >= WORLD_ROWS)
     return "void";
   if (
@@ -56,7 +74,12 @@ export function blockAt(col, row) {
   return "floor";
 }
 
-export function worldLabel(x, y) {
+export function worldLabel(x, y, locationId = null) {
+  const location = locationFor(locationId);
+  if (location) {
+    const room = location.rooms.find((r) => x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height);
+    return `${location.name} / ${room?.name || "HALLWAY"}`;
+  }
   const col = Math.floor(x / (30 * TILE)),
     row = Math.floor(y / (20 * TILE));
   return `DISTRICT ${String(row * 4 + col + 1).padStart(2, "0")} / ${["PRODUCTION", "COLD STORAGE", "EDGE NETWORK", "COMPUTE HALL"][(col + row) % 4]}`;
@@ -67,7 +90,8 @@ export const MAX_CACHED_CHUNKS = 32;
 
 /** Demand-loaded, bounded LRU cache. Work scales with viewport, not world size. */
 export class WorldChunks {
-  constructor() {
+  constructor(locationId = null) {
+    this.locationId = locationId;
     this.cache = new Map();
     this.generated = 0;
   }
@@ -82,7 +106,7 @@ export class WorldChunks {
     const tiles = [];
     for (let row = cy * CHUNK_SIZE; row < (cy + 1) * CHUNK_SIZE; row++)
       for (let col = cx * CHUNK_SIZE; col < (cx + 1) * CHUNK_SIZE; col++) {
-        const type = blockAt(col, row);
+        const type = blockAt(col, row, this.locationId);
         if (type === "void") continue;
         tiles.push({
           col,
@@ -99,6 +123,9 @@ export class WorldChunks {
     return tiles;
   }
   visible(camera, width, height) {
+    const location = locationFor(this.locationId);
+    const cols = location ? Math.ceil(location.width / TILE) : WORLD_COLS;
+    const rows = location ? Math.ceil(location.height / TILE) : WORLD_ROWS;
     // Inverse projection of a padded screen rectangle into world coordinates.
     const halfX = width / 2 + 80,
       halfY = height / 2 + 120,
@@ -108,7 +135,7 @@ export class WorldChunks {
       Math.floor((camera.x - reach) / TILE / CHUNK_SIZE),
     );
     const maxX = Math.min(
-      Math.ceil(WORLD_COLS / CHUNK_SIZE) - 1,
+      Math.ceil(cols / CHUNK_SIZE) - 1,
       Math.floor((camera.x + reach) / TILE / CHUNK_SIZE),
     );
     const minY = Math.max(
@@ -116,7 +143,7 @@ export class WorldChunks {
       Math.floor((camera.y - reach) / TILE / CHUNK_SIZE),
     );
     const maxY = Math.min(
-      Math.ceil(WORLD_ROWS / CHUNK_SIZE) - 1,
+      Math.ceil(rows / CHUNK_SIZE) - 1,
       Math.floor((camera.y + reach) / TILE / CHUNK_SIZE),
     );
     const tiles = [];

@@ -1,16 +1,16 @@
 # ROOT ACCESS
 
-**One sysadmin. Three incidents. Absolutely no staging environment.**
+**Your IT career starts with three small-office incidents.**
 
-A complete, personal arcade survival game for Sebastian “The Hitechist” Sejzer. Built with JavaScript and Canvas, with an original pixel-art datacenter, a fedora-wearing protagonist, synthesized audio, and a very questionable Friday deployment.
+A personal arcade survival game for Sebastian “The Hitechist” Sejzer and the full engineer roster, built with JavaScript and Canvas.
 
-Move through a server room while your patch blaster automatically handles nearby enemies. Collect patches, repair your infrastructure, and choose upgrades between incidents. Survive the legacy stack and cluster panic, then defeat the Friday Deploy. A run lasts about three minutes. Your best score is saved in your browser.
+Move through a small office while your patch blaster handles nearby bugs. Hold E near the marked station to fix the Wi-Fi router, Windows blue-screen, and Mac headset. Collect patches, repair damaged equipment, choose upgrades between incidents, and defeat the final outage. Victory unlocks the two-room call-center stage. Unlocks, best ratings, and high score are saved in your browser.
 
 Choose your engineer from the title screen: Sebastian, Yaroslav, Juan Ignacio,
 Erez, Luis, Nenad, Elad, Rotem, Tal, Jason, or Aldo. Selection changes the portrait,
 animated pixel character, and player labels; all engineers share the same stats
-and abilities. Your selection is remembered locally. The planned career campaign
-keeps the arcade gameplay while introducing new workplaces and promotions; see
+and abilities. Your selection is remembered locally. The career campaign
+keeps the arcade gameplay as later workplaces are added; see
 [the campaign plan](docs/career-campaign.md).
 
 ## Play locally
@@ -29,17 +29,18 @@ Open the local address Vite prints (normally http://localhost:5173).
 | WASD / arrow keys    | Move; firing is automatic                                   |
 | Space                | Invulnerable dash; 3-second cooldown                        |
 | Q                    | Sudo pulse: area damage, knockback, and projectile clearing |
-| Hold E near a server | Restore 24 integrity for 4 patches; revives offline servers |
+| Hold E near a marked station | Complete its fix meter for 4 patches |
+| Hold E near damaged equipment | Restore 24 integrity for 4 patches |
 | P / Escape           | Pause or resume                                             |
 | Enter on title       | Start a shift                                               |
 | Switch player        | End the current shift and open character selection          |
 | End shift            | Return directly to the title                                 |
 
-On phones, use the joystick and action buttons. The camera follows you through a 12,800 × 8,800 isometric datacenter—16 times the earlier map's area—and the minimap shows its districts and three mission servers. The mission stays in the starting production district, while the wider facility is explorable. If you travel away, your servers still need protection; the boss spawns near you.
+On phones, use the joystick and action buttons. The camera follows you through each workplace; the minimap marks the player and equipment. Call-center IT has an employee open space and communications room joined by a wide doorway.
 
-The facility uses deterministic 8 × 8 tile chunks, generated as you move, with a bounded 32-chunk cache. Only nearby tiles are submitted to the renderer, cached block sprites are reused, and enemies remain capped at 55. Increasing map area therefore does not multiply the drawing or enemy-simulation workload. Sebastian and every enemy type have walking cycles and changing expressions; cosmetics do not alter gameplay randomness.
+Workplaces use deterministic 8 × 8 tile chunks with a bounded 32-chunk cache. Only nearby tiles are submitted to the renderer, cached sprites are reused, and enemies remain capped at 55. Characters and enemies have walking cycles and changing expressions; cosmetics do not alter gameplay randomness.
 
-Green diamonds provide patches; pink crosses restore health. All servers going offline, or losing all player health, ends the run. Between incidents you recover health and server integrity and select one of three randomized upgrades. Sound starts muted; enable it in the game toolbar.
+Green diamonds provide patches; pink crosses restore health. All equipment going offline, or losing all player health, ends the run. Between incidents you recover health and equipment integrity and select one of three randomized upgrades. Sound starts muted; enable it in the game toolbar.
 
 The game remains single-player. Its fixed-tick local session, input commands, seeded RNG, stable entity IDs, and JSON snapshots prepare the next multiplayer step. See [the multiplayer notes](docs/multiplayer.md) for what is ready and what the online implementation still needs.
 
@@ -77,7 +78,7 @@ Browser checks use Playwright Chromium. If needed, run `npx playwright install c
 ## Source map
 
 - `src/engine.js` — deterministic simulation, combat, server repairs, waves, upgrades, and win/loss rules.
-- `src/world.js` — reusable deterministic building blocks and the current facility layout.
+- `src/world.js`, `src/career.js` — deterministic tiles and workplace, room, equipment, spawn, and objective definitions.
 - `src/config.js`, `src/random.js` — shared world/protocol constants and restorable seeded randomness.
 - `src/session.js` — fixed-tick local authority, input commands, upgrade offers, and snapshots.
 - `src/animation.js` — deterministic expressions and distance-driven walking cycles.

@@ -1,5 +1,6 @@
 import { WORLD_WIDTH, WORLD_HEIGHT, WORLD_SEED } from "./config.js";
 import { isSolidAt } from "./world.js";
+import { locationFor } from "./career.js";
 import { seededRandom } from "./random.js";
 export { WORLD_WIDTH, WORLD_HEIGHT } from "./config.js";
 export const WIDTH = 1120,
@@ -82,8 +83,16 @@ export const UPGRADES = [
 ];
 export const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 export const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-export function createGame(random = seededRandom(WORLD_SEED)) {
+export const wavesFor = (g) => locationFor(g.locationId)?.waves ?? WAVES;
+export const boundsFor = (g) => locationFor(g.locationId) ?? { width: WORLD_WIDTH, height: WORLD_HEIGHT };
+export function createGame(random = seededRandom(WORLD_SEED), locationId = null) {
+  const location = locationFor(locationId);
   return {
+    locationId: location?.id ?? null,
+    objectives: location ? location.waves.map((wave) => ({
+      id: wave.objective, name: location.equipment.find((e) => e.id === wave.objective).name,
+      progress: 0, completed: false, reward: 500,
+    })) : [],
     mode: "playing",
     random,
     tick: 0,
@@ -115,8 +124,8 @@ export function createGame(random = seededRandom(WORLD_SEED)) {
       characterId: "sebastian",
       walkPhase: 0,
       facing: 1,
-      x: WORLD_WIDTH / 2,
-      y: WORLD_HEIGHT / 2,
+      x: location?.start.x ?? WORLD_WIDTH / 2,
+      y: location?.start.y ?? WORLD_HEIGHT / 2,
       hp: 100,
       maxHp: 100,
       speed: 172,
@@ -131,7 +140,9 @@ export function createGame(random = seededRandom(WORLD_SEED)) {
       dirY: 2,
       moving: false,
     },
-    servers: [
+    servers: location ? location.equipment.map((e) => ({
+      ...e, hp: 100, sector: location.name, rackKind: e.kind,
+    })) : [
       {
         id: "server-web",
         x: 5720,
@@ -186,9 +197,14 @@ export function floating(g, x, y, text, color = "#b7f58e") {
 }
 export function spawnEnemy(g, type, position) {
   const side = Math.floor(g.random() * 4);
+  const location = locationFor(g.locationId);
   let x, y;
   if (position) {
     ({ x, y } = position);
+  } else if (location) {
+    const point = location.spawnPoints[side];
+    x = point.x;
+    y = point.y;
   } else {
     // Incidents spill into the current sector instead of marching in from a
     // distant map edge. The broader world is for exploration, not dead time.
@@ -222,6 +238,9 @@ export function spawnEnemy(g, type, position) {
     vx: 0,
     vy: 0,
   };
+  if (location && type === "boss") {
+    e.hp = e.maxHp = 900;
+  }
   g.enemies.push(e);
   particles(g, x, y, "#da826a", 10);
   return e;
@@ -296,6 +315,27 @@ export function activatePulse(g) {
   return true;
 }
 export function repair(g) {
+  const objective = g.objectives?.[g.wave];
+  if (objective && !objective.completed) {
+    const equipment = g.servers.find((s) => s.id === objective.id);
+    if (equipment && distance(g.player, equipment) < 115) {
+      if (g.patches < 4) {
+        emit(g, "toast", { text: "Need 4 patches. Collect the green diamonds." });
+        return false;
+      }
+      objective.progress = Math.min(100, objective.progress + 25);
+      if (objective.progress >= 100) {
+        objective.completed = true;
+        g.patches -= 4;
+        equipment.hp = 100;
+        g.score += objective.reward;
+        particles(g, equipment.x, equipment.y, "#b7f58e", 18);
+        floating(g, equipment.x, equipment.y - 60, "FIXED");
+        emit(g, "objective", { name: objective.name });
+      }
+      return true;
+    }
+  }
   const node = g.servers
     .filter((s) => distance(g.player, s) < 95 && s.hp < 100)
     .sort((a, b) => a.hp - b.hp)[0];
@@ -369,6 +409,7 @@ export function step(g, dt, input = {}) {
   g.banner = Math.max(0, g.banner - dt);
   g.shake = Math.max(0, g.shake - dt * 22);
   const p = g.player;
+  const bounds = boundsFor(g);
   const oldX = p.x,
     oldY = p.y;
   p.dashCooldown = Math.max(0, p.dashCooldown - dt);
@@ -396,12 +437,12 @@ export function step(g, dt, input = {}) {
     my = p.dirY * 3.5;
     particles(g, p.x, p.y, "#83bea6", 1);
   }
-  const nextX = clamp(p.x + mx * p.speed * dt, 66, WORLD_WIDTH - 66);
-  const nextY = clamp(p.y + my * p.speed * dt, 66, WORLD_HEIGHT - 66);
+  const nextX = clamp(p.x + mx * p.speed * dt, 140, bounds.width - 140);
+  const nextY = clamp(p.y + my * p.speed * dt, 140, bounds.height - 140);
   // Rack tiles are solid; resolve each axis separately so aisle walls slide
   // naturally instead of trapping Sebastian on diagonal movement.
-  if (!isSolidAt(nextX, p.y)) p.x = nextX;
-  if (!isSolidAt(p.x, nextY)) p.y = nextY;
+  if (!isSolidAt(nextX, p.y, 28, g.locationId)) p.x = nextX;
+  if (!isSolidAt(p.x, nextY, 28, g.locationId)) p.y = nextY;
   // Server cabinets are solid; their interaction ring remains accessible on every side.
   for (const s of g.servers) {
     const d = distance(p, s);
@@ -442,11 +483,12 @@ export function step(g, dt, input = {}) {
               : "bug";
     } else if (g.waveTime > 18 && roll < 0.3) type = "runner";
     spawnEnemy(g, type);
-    g.spawnTimer = WAVES[g.wave].interval * (g.bossSpawned ? 1.4 : 1);
+    g.spawnTimer = wavesFor(g)[g.wave].interval * (g.bossSpawned ? 1.4 : 1);
   }
-  if (g.wave === 2 && g.waveTime >= WAVES[2].duration && !g.bossSpawned) {
+  if (g.wave === 2 && g.waveTime >= wavesFor(g)[2].duration && !g.bossSpawned &&
+      (!g.objectives.length || g.objectives[2].completed)) {
     g.bossSpawned = true;
-    spawnEnemy(g, "boss", {
+    spawnEnemy(g, "boss", g.locationId ? undefined : {
       x: clamp(p.x + 350, 70, WORLD_WIDTH - 70),
       y: clamp(p.y - 450, 70, WORLD_HEIGHT - 70),
     });
@@ -500,8 +542,8 @@ export function step(g, dt, input = {}) {
       e.x += dx * speed * dt;
       e.y += dy * speed * dt;
     }
-    e.x = clamp(e.x + e.vx * dt, 48, WORLD_WIDTH - 48);
-    e.y = clamp(e.y + e.vy * dt, 48, WORLD_HEIGHT - 48);
+    e.x = clamp(e.x + e.vx * dt, 140, bounds.width - 140);
+    e.y = clamp(e.y + e.vy * dt, 140, bounds.height - 140);
     const ex = e.x - previousX,
       ey = e.y - previousY;
     const traveled = Math.hypot((ex - ey) * 0.5, (ex + ey) * 0.25);
@@ -583,9 +625,9 @@ export function step(g, dt, input = {}) {
     (s) =>
       s.life > 0 &&
       s.x > 0 &&
-      s.x < WORLD_WIDTH &&
+      s.x < bounds.width &&
       s.y > 0 &&
-      s.y < WORLD_HEIGHT,
+      s.y < bounds.height,
   );
   g.enemies = g.enemies.filter((e) => e.hp > 0);
   for (const d of g.drops) {
@@ -636,7 +678,8 @@ export function step(g, dt, input = {}) {
     emit(g, "end", { won: true });
     return;
   }
-  if (g.wave < 2 && g.waveTime >= WAVES[g.wave].duration) {
+  if (g.wave < 2 && g.waveTime >= wavesFor(g)[g.wave].duration &&
+      (!g.objectives.length || g.objectives[g.wave].completed)) {
     g.mode = "upgrade";
     g.score += 500;
     emit(g, "upgrade");

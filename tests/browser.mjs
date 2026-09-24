@@ -89,7 +89,18 @@ try {
   await page.locator("#resume-button").click();
   pass("Pause freezes simulation and resume restores it");
   await page.evaluate(() => {
-    window.__game.state.waveTime = 45;
+    const g = window.__game.state;
+    g.player.x = g.servers[0].x;
+    g.player.y = g.servers[0].y + 55;
+    g.spawnTimer = 100;
+  });
+  await page.keyboard.down("e");
+  await page.waitForFunction(() => window.__game.state.objectives[0].completed, null, { timeout: 5000 });
+  await page.keyboard.up("e");
+  assert.equal(await page.evaluate(() => window.__game.state.patches), 8);
+  pass("Holding E near the Wi-Fi router completes the objective for four patches");
+  await page.evaluate(() => {
+    window.__game.state.waveTime = 24;
   });
   await page.locator("#upgrade-screen").waitFor();
   assert.equal(await page.locator(".upgrade-card").count(), 3);
@@ -101,12 +112,14 @@ try {
   );
   pass("Incident transition offers three working upgrade choices");
   await page.evaluate(() => {
-    window.__game.state.waveTime = 50;
+    window.__game.state.objectives[1].completed = true;
+    window.__game.state.waveTime = 28;
   });
   await page.locator("#upgrade-screen").waitFor();
   await page.locator(".upgrade-card").first().click();
   await page.evaluate(() => {
-    window.__game.state.waveTime = 40;
+    window.__game.state.objectives[2].completed = true;
+    window.__game.state.waveTime = 32;
   });
   await page.locator("#boss-hud").waitFor();
   await page.waitForTimeout(1800);
@@ -120,7 +133,8 @@ try {
     window.__game.state.score = 5000;
   });
   await page.locator("#end-screen").waitFor();
-  assert.match(await page.locator("#end-title").innerText(), /touch grass/);
+  assert.match(await page.locator("#end-title").innerText(), /Shift complete/);
+  assert.ok(await page.evaluate(() => JSON.parse(localStorage.getItem("hitechist-root-access-career")).unlocked.includes("call_center")));
   assert.ok(
     await page.evaluate(
       () => Number(localStorage.getItem("hitechist-root-access-best")) >= 5000,
@@ -141,6 +155,11 @@ try {
   assert.match(await page.locator("#end-title").innerText(), /escalated/);
   await page.locator("#home-button").click();
   assert.equal(await page.locator("#start-screen").isVisible(), true);
+  assert.equal(await page.locator(".career-location").nth(1).isEnabled(), true);
+  await page.locator(".career-location").nth(1).click();
+  await page.locator("#start-button").click();
+  assert.equal(await page.evaluate(() => window.__game.state.locationId), "call_center");
+  await page.locator("#end-shift-button").click();
   pass("Restart resets progression; defeat and return-to-title work");
   await page.locator("#start-button").click();
   await page.locator("#end-shift-button").click();

@@ -79,6 +79,7 @@ test("an action is consumed once and pausing clears pending movement", () => {
 });
 test("upgrade offers belong to the session and persist through snapshots", () => {
   const a = new LocalSession({ seed: 4 });
+  a.state.objectives[0].completed = true;
   a.state.waveTime = 45;
   a.advance(FIXED_DT);
   const options = a.upgradeChoices();

@@ -1570,6 +1570,11 @@ dialog .primary-button {
   .start-screen .eyebrow { font-size: 8px; }
 }
 .start-screen .character-picker-button { margin: 0 0 12px; }
+.career-select { display: flex; gap: 7px; margin: 0 0 12px; flex-wrap: wrap; }
+.career-location { padding: 7px 9px; border: 1px solid #5b786a; background: #182d2b; color: #c8edaa; font: 9px var(--mono); cursor: pointer; }
+.career-location[aria-pressed="true"] { border-color: #b7f58e; background: #334c39; }
+.career-location:disabled { color: #82958a; opacity: .7; cursor: default; }
+.career-location:focus-visible { outline: 3px solid #f2bd79; outline-offset: 2px; }
 @media (max-width: 760px) {
   .start-screen .character-picker-button { margin-bottom: 10px; }
   .start-screen h1 { margin-bottom: 17px; }

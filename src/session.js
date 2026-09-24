@@ -9,6 +9,7 @@ import {
 } from "./engine.js";
 import { seededRandom } from "./random.js";
 import { getCharacter } from "./characters.js";
+import { locationFor } from "./career.js";
 import {
   PROTOCOL_VERSION,
   FIXED_DT,
@@ -20,9 +21,9 @@ import {
 // This is the local authority today. A future socket adapter submits the same
 // commands to a server running this module, then distributes snapshots.
 export class LocalSession {
-  constructor({ seed = WORLD_SEED, characterId = "sebastian" } = {}) {
+  constructor({ seed = WORLD_SEED, characterId = "sebastian", locationId = "office" } = {}) {
     this.seed = seed >>> 0;
-    this.state = createGame(seededRandom(this.seed));
+    this.state = createGame(seededRandom(this.seed), locationId);
     this.state.player.characterId = getCharacter(characterId).id;
     this.accumulator = 0;
     this.lastSequence = -1;
@@ -108,7 +109,9 @@ export class LocalSession {
     const { random, ...state } = this.state;
     return structuredClone({
       version: PROTOCOL_VERSION,
-      world: { seed: WORLD_SEED, width: WORLD_WIDTH, height: WORLD_HEIGHT },
+      world: { seed: WORLD_SEED, width: locationFor(this.state.locationId)?.width ?? WORLD_WIDTH,
+        height: locationFor(this.state.locationId)?.height ?? WORLD_HEIGHT,
+        locationId: this.state.locationId },
       seed: this.seed,
       rngState: random.getState(),
       state,
@@ -122,14 +125,15 @@ export class LocalSession {
     if (
       snapshot?.version !== PROTOCOL_VERSION ||
       snapshot.world?.seed !== WORLD_SEED ||
-      snapshot.world.width !== WORLD_WIDTH ||
-      snapshot.world.height !== WORLD_HEIGHT ||
+      snapshot.world.width !== (locationFor(snapshot.world.locationId)?.width ?? WORLD_WIDTH) ||
+      snapshot.world.height !== (locationFor(snapshot.world.locationId)?.height ?? WORLD_HEIGHT) ||
+      snapshot.state?.locationId !== snapshot.world.locationId ||
       !Number.isSafeInteger(snapshot.state?.tick) ||
       !Number.isSafeInteger(snapshot.rngState)
     )
       throw new Error("Incompatible game snapshot");
     const copy = structuredClone(snapshot),
-      session = new LocalSession({ seed: copy.seed });
+      session = new LocalSession({ seed: copy.seed, locationId: copy.world.locationId });
     Object.assign(session.state, copy.state);
     session.state.random.setState(copy.rngState);
     session.accumulator = copy.accumulator;

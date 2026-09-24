@@ -47,9 +47,9 @@ reuses movement/combat/interaction controls, and offers readable progress feedba
 
 1. Character roster and portraits (complete).
 2. Data-driven location bounds, rooms, doors, collision, equipment and spawn points;
-   update the renderer, camera, minimap and snapshot format accordingly.
-3. Reusable arcade objectives with progress, dependencies, rewards and completion.
-4. Small office and call center, including promotion and saved unlocks.
+   update the renderer, camera, minimap and snapshot format accordingly (complete for office and call center).
+3. Reusable arcade objectives with progress, rewards and completion (complete for station fixes; dependencies remain planned).
+4. Small office and call center, including promotion and saved unlocks (complete).
 5. Six-room sysadmin stage and linked technology incidents.
 6. Global sites and delegation, then datacenter vehicles and travel.
 7. Management encounters and sprint objectives.
@@ -59,16 +59,13 @@ old enemies and held input, saves restore the correct location, timers remain fa
 during travel, and all stages work with keyboard and touch controls. Preserve the
 fixed-tick deterministic simulation and bounded rendering caches.
 
-## Handoff for the next development session
+## Implementation status
 
-The character roster is complete. The current playable game remains three arcade
-waves in one datacenter; none of the career locations or promotion mechanics are
-implemented yet. The next concrete task is a playable small-office stage with
-Wi-Fi router, Windows blue-screen, and Mac Bluetooth-headset objectives. Keep
-movement, dodging, auto-fire, patches, quick repairs, incident waves, and upgrades.
-Completing its final wave should unlock the two-room call-center stage. Build the
-location and objective foundations needed for those stages rather than adding
-new technology incidents first.
+The character roster, small-office stage, and two-room call-center stage are
+playable. Each stage has three station fixes, incident waves, upgrades, and a
+final boss. Completing the office outage unlocks call-center IT. Unlocks and best
+ratings are saved locally. The earlier datacenter simulation remains available to
+headless tests but is no longer the title-screen campaign stage.
 
 No new character photos or design decisions are needed to begin. See `README.md`
 for controls and source-file roles. The game is static JavaScript and Canvas;

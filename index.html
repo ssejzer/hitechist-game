@@ -70,7 +70,7 @@
               id="game"
               width="1120"
               height="620"
-              aria-label="Server room arena. Move with WASD or arrow keys. Your weapon fires automatically."
+              aria-label="Career arcade arena. Move with WASD or arrow keys. Your weapon fires automatically."
               tabindex="0"
             ></canvas>
             <div class="scanlines"></div>
@@ -82,7 +82,7 @@
               <div
                 class="server-status"
                 id="server-status"
-                aria-label="Server integrity"
+                aria-label="Equipment integrity"
               >
                 <span>WEB <b>100</b></span
                 ><span>DB <b>100</b></span
@@ -98,7 +98,7 @@
               </div>
             </div>
             <div class="boss-hud hidden" id="boss-hud">
-              <span>! FRIDAY DEPLOY <b id="boss-percent">100%</b></span>
+              <span>! OUTAGE <b id="boss-percent">100%</b></span>
               <div class="meter"><i id="boss-bar"></i></div>
             </div>
             <div class="start-screen" id="start-screen">
@@ -106,23 +106,21 @@
                 <span class="live-dot"></span> PRODUCTION IS YOUR PLAYGROUND
               </div>
               <h1>ROOT<br /><span>ACCESS</span><em>_</em></h1>
-              <p class="hero-description">
-                One sysadmin. Three incidents.<br />Absolutely no staging
-                environment.
-              </p>
+              <p class="hero-description">Your IT career starts in a small office.<br />Fix three incidents. Survive the outage.</p>
               <button class="character-picker-button" id="character-button">CHOOSE CHARACTER · <span id="selected-character">Sebastian</span></button>
+              <div class="career-select" id="career-select" aria-label="Workplace selection"></div>
               <button class="primary-button" id="start-button">
                 <span>START YOUR SHIFT</span><span>↗</span>
               </button>
               <div class="start-meta">
-                <span>↵ ENTER TO START</span><span>~ 3 MIN / RUN</span>
+                <span>↵ ENTER TO START</span><span>3 INCIDENTS / SHIFT</span>
               </div>
               <div class="best-label" id="best-label">
                 LOCAL HIGH SCORE <b>000000</b>
               </div>
             </div>
             <div class="scene-tag" id="scene-tag">
-              <span class="green-dot"></span> TEL AVIV DATACENTER
+              <span class="green-dot"></span> SMALL OFFICE
               <span>02:47 AM</span>
             </div>
             <div class="character-tag" id="character-tag">
@@ -136,7 +134,7 @@
             <div class="ability-bar hidden" id="ability-bar">
               <span><kbd>SPACE</kbd> <b id="dash-label">DASH</b></span
               ><span><kbd>Q</kbd> <b id="pulse-label">SUDO PULSE</b></span
-              ><span><kbd>E</kbd> REPAIR · 4 PATCHES</span>
+              ><span><kbd>E</kbd> FIX / REPAIR · 4 PATCHES</span>
             </div>
             <div class="touch-controls hidden" id="touch-controls">
               <div id="joystick" aria-label="Movement joystick">
@@ -171,7 +169,7 @@
                 <p>Pick one permanent upgrade for the rest of your shift.</p>
                 <div id="upgrade-options"></div>
                 <div class="modal-foot">
-                  All servers restored +25 · Health restored +30
+                  Equipment restored +25 · Health restored +30
                 </div>
               </div>
             </div>
@@ -250,22 +248,22 @@
             <span class="section-label">THE MISSION</span>
             <h2>Keep the lights on.</h2>
             <p>
-              Protect three servers. Collect patches. Survive the shift.<br />When
+              Fix the Wi-Fi router, clear the Windows blue-screen, and pair a Mac headset.<br />When
               things go wrong, there’s always <code>sudo</code>.
             </p>
           </div>
           <div class="incident-track">
             <div>
-              <span>01</span><b>THE LEGACY STACK</b
-              ><small>Someone else's technical debt.</small>
+              <span>01</span><b>WI-FI DROPOUT</b
+              ><small>Get the office back online.</small>
             </div>
             <div>
-              <span>02</span><b>CLUSTER PANIC</b
-              ><small>It's always DNS. Until it isn't.</small>
+              <span>02</span><b>BLUE SCREEN</b
+              ><small>Clear the Windows crash.</small>
             </div>
             <div>
-              <span>03</span><b>THE FRIDAY DEPLOY</b
-              ><small>One last push. What could go wrong?</small>
+              <span>03</span><b>OFFICE OUTAGE</b
+              ><small>Pair the headset and contain the outage.</small>
             </div>
           </div>
         </section>
@@ -284,8 +282,8 @@
       </div>
       <h2>Survive production.</h2>
       <p>
-        You're Sebastian, the last engineer awake. Keep yourself and the
-        datacenter alive through three incidents, then defeat the Friday Deploy.
+        Choose your engineer. Repair each marked station while dodging bugs, then
+        defeat the office outage to unlock call-center IT.
       </p>
       <div class="manual-grid">
         <div>
@@ -306,16 +304,16 @@
           </p>
         </div>
         <div>
-          <kbd>E</kbd><b>Repair</b>
+          <kbd>E</kbd><b>Fix / repair</b>
           <p>
-            Stand by a server and hold E. Each repair restores 24 integrity for
-            4 patches.
+            Stand by the marked station and hold E to fill its fix meter; finishing
+            costs 4 patches. Hold E near damaged equipment to restore integrity.
           </p>
         </div>
       </div>
       <p class="manual-tip">
         Green diamonds are patches. Pink crosses restore health. Enemies attack
-        you and your servers. If you fall—or all three servers go down—the shift
+        you and your equipment. If you fall—or all three stations go down—the shift
         is over. Pick an upgrade between incidents.
       </p>
       <p class="manual-tip">
