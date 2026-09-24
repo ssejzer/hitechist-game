@@ -21,10 +21,12 @@ export function isSolidAt(x, y, radius = 28, locationId = null) {
     [-radius, 0],
     [0, radius],
     [0, -radius],
-  ].some(([dx, dy]) =>
-    isRack(blockAt(Math.floor((x + dx) / TILE), Math.floor((y + dy) / TILE), locationId)) ||
-    ["office-desk", "edge"].includes(blockAt(Math.floor((x + dx) / TILE), Math.floor((y + dy) / TILE), locationId)) && !!locationFor(locationId),
-  );
+  ].some(([dx, dy]) => {
+    const tile = blockAt(Math.floor((x + dx) / TILE), Math.floor((y + dy) / TILE), locationId);
+    return isRack(tile) ||
+      (!!locationFor(locationId) && ["office-desk", "edge"].includes(tile)) ||
+      (locationId === "office" && tile === "plant");
+  });
 }
 
 /** A reusable deterministic building block. New floors only need a new layout. */
@@ -58,6 +60,9 @@ export function blockAt(col, row, locationId = null) {
     // Keep both approaches to each doorway free of desks and racks.
     if (location.doors.some((door) => Math.abs(door.x - x) <= TILE * 2.5 && Math.abs(door.y - y) <= TILE * 1.6))
       return "walkway";
+    if (location.id === "office" &&
+        ((col === 2 || col === 17) && (row === 2 || row === 11)))
+      return "plant";
     if ((col + row * 3) % 11 === 0 && row > 2 && row < rows - 2 &&
         !location.equipment.some((e) => Math.hypot(e.x - (col + 0.5) * TILE, e.y - (row + 0.5) * TILE) < 175))
       return ["sysadmin", "datacenter"].includes(location.id) ? "compute-rack" : "office-desk";

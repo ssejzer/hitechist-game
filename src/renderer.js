@@ -6,6 +6,13 @@ import { CHARACTERS, getCharacter } from "./characters.js";
 
 import { drawEngineerFace, drawEngineerPortrait } from "./character-face.js";
 
+const ENVIRONMENT_ANCHORS = {
+  "office-desk": 145, "meeting-table": 143,
+  "office-equipment": 126, "network-station": 126, "storage-station": 128,
+  "rack-compute": 128, "rack-storage": 128, "rack-network": 128,
+  "utility-console": 125, "coffee-machine": 124, "office-plant": 121,
+};
+
 export class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -18,6 +25,8 @@ export class Renderer {
     this.reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.camera = { x: 1600, y: 1120 };
     this.sprites = new Map();
+    // Load each Blender-rendered prop when its workplace first needs it.
+    this.environmentSprites = new Map();
     this.faces = new Map();
     this.companions = new Map();
     for (const character of CHARACTERS) {
@@ -69,6 +78,37 @@ export class Renderer {
     const point = this.project(x, y),
       cam = this.project(this.camera.x, this.camera.y);
     return { x: WIDTH / 2 + point.x - cam.x, y: HEIGHT / 2 + point.y - cam.y };
+  }
+  drawEnvironmentSprite(ctx, name, x, y) {
+    let sprite = this.environmentSprites.get(name);
+    if (!sprite) {
+      sprite = new Image();
+      sprite.src = `${import.meta.env.BASE_URL}assets/isometric/${name}.png`;
+      this.environmentSprites.set(name, sprite);
+    }
+    if (!sprite?.complete || !sprite.naturalWidth) return false;
+    const anchorY = ENVIRONMENT_ANCHORS[name];
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(sprite, Math.round(x - 80), Math.round(y - anchorY), 160, 176);
+    ctx.restore();
+    return true;
+  }
+  propSpriteName(entity, locationId) {
+    if (isRack(entity.type)) return `rack-${entity.type.replace("-rack", "")}`;
+    if (entity.type === "utility") return "utility-console";
+    if (entity.type === "plant") return "office-plant";
+    if (entity.type === "office-desk")
+      return locationId === "manager" && entity.x < 1540 ? "meeting-table" : "office-desk";
+    return null;
+  }
+  stationSpriteName(entity, locationId) {
+    if (locationId === "office") return "office-equipment";
+    return {
+      compute: "office-equipment",
+      network: "network-station",
+      storage: "storage-station",
+    }[entity.rackKind] ?? "office-equipment";
   }
   diamond(ctx, x, y, color) {
     ctx.fillStyle = color;
@@ -462,7 +502,9 @@ export class Renderer {
       70,
       dead ? "#be6a5514" : danger ? "#e4a06b1e" : "#a7e17e18",
     );
-    this.rackBlock(ctx, x, y, time, false, hp, rackKind);
+    if (!this.drawEnvironmentSprite(ctx, `rack-${rackKind}`, x, y))
+      this.rackBlock(ctx, x, y, time, false, hp, rackKind);
+    else this.rect(ctx, x + 20, y - 52, 7, 6, dead ? "#c8785d" : danger ? "#e7a475" : "#b7ed8e");
   }
   player(ctx, p, time, bystander = false) {
     ctx.save();
@@ -942,25 +984,39 @@ export class Renderer {
           Math.abs(p.x - this.screen(g.player.x, g.player.y).x) < 45 &&
           p.y - this.screen(g.player.x, g.player.y).y < 100;
         const variant = (entity.col + entity.row) % 2;
-        const sprite = this.cachedSprite(`${entity.type}-${variant}`, (c) => {
-          if (isRack(entity.type))
-            this.rackBlock(c, 80, 112, 0, variant, null, entity.type.replace("-rack", ""));
-          if (entity.type === "utility") this.utilityBlock(c, 80, 112);
-          if (entity.type === "plant") this.plantBlock(c, 80, 112);
-          if (entity.type === "office-desk") this.officeDesk(c, 80, 112);
-        });
+        const artName = this.propSpriteName(entity, g.locationId);
         ctx.globalAlpha = behindPlayer ? 0.3 : 1;
-        ctx.drawImage(sprite, Math.round(p.x - 80), Math.round(p.y - 112));
+        if (!artName || !this.drawEnvironmentSprite(ctx, artName, p.x, p.y)) {
+          const sprite = this.cachedSprite(`${entity.type}-${variant}`, (c) => {
+            if (isRack(entity.type))
+              this.rackBlock(c, 80, 112, 0, variant, null, entity.type.replace("-rack", ""));
+            if (entity.type === "utility") this.utilityBlock(c, 80, 112);
+            if (entity.type === "plant") this.plantBlock(c, 80, 112);
+            if (entity.type === "office-desk") this.officeDesk(c, 80, 112);
+          });
+          ctx.drawImage(sprite, Math.round(p.x - 80), Math.round(p.y - 112));
+        }
         ctx.globalAlpha = 1;
       } else if (entity.kind === "server") {
         if (["sysadmin", "datacenter"].includes(g.locationId)) this.rack(ctx, p.x, p.y, entity.hp, time, entity.rackKind);
-        else if (g.locationId) this.officeEquipment(ctx, p.x, p.y, entity, time);
+        else if (g.locationId) {
+          if (!this.drawEnvironmentSprite(ctx, this.stationSpriteName(entity, g.locationId), p.x, p.y))
+            this.officeEquipment(ctx, p.x, p.y, entity, time);
+          else {
+            this.rect(ctx, p.x + 15, p.y - 28, 7, 5, entity.hp <= 0 ? "#db7764" : "#b7f58e");
+          }
+        }
         else this.rack(ctx, p.x, p.y, entity.hp, time, entity.rackKind);
       }
       else if (entity.kind === "shuttle") this.shuttle(ctx, p, time);
       else if (entity.kind === "companion") this.drawCompanion(ctx, p, time);
       else if (entity.kind === "coffee") {
-        this.coffeeMachine(ctx, p, time);
+        if (!this.drawEnvironmentSprite(ctx, "coffee-machine", p.x, p.y))
+          this.coffeeMachine(ctx, p, time);
+        else if (entity.cooldown <= 0) {
+          const rise = (time * 14) % 20;
+          this.rect(ctx, p.x + 13, p.y - 58 - rise, 3, 5, "#e3d8bd88");
+        }
         if (Math.hypot(entity.x - g.player.x, entity.y - g.player.y) < 105)
           this.worldTag(ctx, entity.cooldown > 0 ? `BREWING ${Math.ceil(entity.cooldown)}s` : "HOLD E · COFFEE", p.x, p.y - 65, "#f6cf7f");
       }

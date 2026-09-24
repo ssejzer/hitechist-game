@@ -45,6 +45,8 @@ Remote stages show travel and support controls below the playfield. At the AWS d
 
 Workplaces use deterministic 8 × 8 tile chunks with a bounded 32-chunk cache. Only nearby tiles are submitted to the renderer, cached sprites are reused, and enemies remain capped at 55. Characters and enemies have walking cycles and changing expressions; cosmetics do not alter gameplay randomness.
 
+Across the career workplaces, desks, equipment, server racks, coffee machines, plants, and utility consoles use transparent isometric PNG sprites. Meeting-room tables and equipment types have their own variants. The sprites are rendered ahead of time from simple Blender geometry in `scripts/render_environment_sprites.py`; Blender is not needed to play the game. To regenerate them after changing the models, run `blender --background --python scripts/render_environment_sprites.py`. The Canvas renderer retains its drawn props as a fallback while the PNGs load.
+
 Green diamonds provide patches; pink crosses restore health. All equipment going offline, or losing all player health, ends the run. Between incidents you recover health and equipment integrity and select one of three randomized upgrades. Sound starts muted; enable it in the game toolbar.
 
 Each room outside the datacenter has a coffee machine. Coffee overload boosts movement and firing for eight seconds, followed by a two-second slowdown. Yaroslav's monitoring drone follows him, marks nearby equipment below 75 integrity, and collects patches close to the drone.
