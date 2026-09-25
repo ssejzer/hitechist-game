@@ -1,6 +1,8 @@
 import { LOCATIONS } from "./career.js";
 import { getCharacter } from "./characters.js";
 
+export const PUBLIC_GAME_URL = "https://rex5.com/games/root-access/";
+
 const whole = (value, maximum = 99999999) => Math.max(0, Math.min(maximum, Math.floor(Number(value) || 0)));
 
 export function createPerformanceReport(game, won, rating = 0) {
@@ -16,6 +18,7 @@ export function createPerformanceReport(game, won, rating = 0) {
     integrity: game.servers?.length
       ? whole(Math.round(game.servers.reduce((sum, server) => sum + server.hp, 0) / game.servers.length), 100)
       : 0,
+    productivity: whole(game.productivity ?? 100, 100),
   };
 }
 
@@ -27,16 +30,19 @@ export function parsePerformanceReport(value) {
         getCharacter(data.employee).id !== data.employee || typeof data.won !== "boolean") return null;
     for (const key of ["rating", "score", "kills", "seconds", "incidents", "integrity"])
       if (!Number.isInteger(data[key]) || data[key] < 0) return null;
+    if (data.productivity !== undefined &&
+        (!Number.isInteger(data.productivity) || data.productivity < 0)) return null;
     return {
       employee: data.employee, location: data.location, won: data.won,
       rating: data.won ? whole(data.rating, 3) : 0,
       score: whole(data.score), kills: whole(data.kills), seconds: whole(data.seconds),
       incidents: whole(data.incidents, 3), integrity: whole(data.integrity, 100),
+      productivity: whole(data.productivity ?? 100, 100),
     };
   } catch { return null; }
 }
 
-export function performanceReportUrl(report, pageUrl) {
+export function performanceReportUrl(report, pageUrl = PUBLIC_GAME_URL) {
   const url = new URL(pageUrl);
   url.search = "";
   url.hash = "";
@@ -44,7 +50,7 @@ export function performanceReportUrl(report, pageUrl) {
   return url.href;
 }
 
-export function performanceShareUrl(report, pageUrl) {
+export function performanceShareUrl(report, pageUrl = PUBLIC_GAME_URL) {
   const url = new URL("share.php", pageUrl);
   url.searchParams.set("report", JSON.stringify(report));
   return url.href;
@@ -54,5 +60,5 @@ export function performanceReportText(report, url) {
   const employee = getCharacter(report.employee).name;
   const location = LOCATIONS[report.location].name;
   const duration = `${String(Math.floor(report.seconds / 60)).padStart(2, "0")}:${String(report.seconds % 60).padStart(2, "0")}`;
-  return `HITECHIST EMPLOYEE PERFORMANCE REPORT\n${employee} · ${location}\n${report.won ? `SHIFT COMPLETE · ${"★".repeat(report.rating)}${"☆".repeat(3 - report.rating)}` : "SHIFT INTERRUPTED · REVIEW REQUIRED"}\nScore: ${report.score} · Incidents resolved: ${report.incidents}/3 · Processes killed: ${report.kills}\nSystems integrity: ${report.integrity}% · Time on call: ${duration}\n${url}`;
+  return `HITECHIST EMPLOYEE PERFORMANCE REPORT\n${employee} · ${location}\n${report.won ? `SHIFT COMPLETE · ${"★".repeat(report.rating)}${"☆".repeat(3 - report.rating)}` : "SHIFT INTERRUPTED · REVIEW REQUIRED"}\nScore: ${report.score} · Incidents resolved: ${report.incidents}/3 · Processes killed: ${report.kills}\nSystems integrity: ${report.integrity}% · Productivity: ${report.productivity ?? 100}% · Time on call: ${duration}\n${url}`;
 }

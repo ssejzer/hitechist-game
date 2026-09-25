@@ -127,6 +127,8 @@ export function createGame(random = seededRandom(WORLD_SEED), locationId = null,
     spawnTimer: 2.5,
     kills: 0,
     score: 0,
+    productivity: 100,
+    productivityRoom: null,
     patches: 12,
     shots: [],
     enemies: [],
@@ -667,6 +669,16 @@ export function step(g, dt, input = {}) {
         }
       }
     }
+  }
+  if (g.locationId === "manager") {
+    const room = locationFor(g.locationId).rooms.find((room) =>
+      p.x >= room.x && p.x <= room.x + room.width &&
+      p.y >= room.y && p.y <= room.y + room.height);
+    if (room?.id !== g.productivityRoom && ["kitchen", "bathroom"].includes(room?.id)) {
+      g.productivity = Math.max(0, (g.productivity ?? 100) - 10);
+      emit(g, "toast", { text: `${room.name}: productivity -10%.` });
+    }
+    g.productivityRoom = room?.id ?? null;
   }
   if (g.upgrades.includes("repair"))
     for (const s of g.servers) s.hp = Math.min(100, s.hp + dt * 1.2);

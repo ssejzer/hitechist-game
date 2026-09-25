@@ -56,6 +56,7 @@ The game remains single-player. Its fixed-tick local session, input commands, se
 ## Hostinger deployment
 
 The game is a **static website**. Social report previews use one small PHP file, `share.php`, so Facebook and LinkedIn can read each player's result. Hostinger web hosting must run PHP for those previews. No Node.js server, database, API keys, or account integration is needed.
+Share buttons always use `https://rex5.com/games/root-access/`, including when testing the game locally. The copied report uses that public game address.
 
 ```sh
 npm run build

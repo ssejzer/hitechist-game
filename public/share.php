@@ -24,6 +24,8 @@ $valid = is_array($report)
 foreach (['rating', 'score', 'kills', 'seconds', 'incidents', 'integrity'] as $key) {
     $valid = $valid && isset($report[$key]) && is_int($report[$key]) && $report[$key] >= 0;
 }
+$valid = $valid && (!isset($report['productivity']) ||
+    (is_int($report['productivity']) && $report['productivity'] >= 0));
 if (!$valid) {
     http_response_code(400);
     header('Content-Type: text/plain; charset=UTF-8');
@@ -35,12 +37,13 @@ foreach (['rating' => 3, 'score' => 99999999, 'kills' => 99999999,
     $report[$key] = min($report[$key], $max);
 }
 if (!$report['won']) $report['rating'] = 0;
+$report['productivity'] = min($report['productivity'] ?? 100, 100);
 
 $employee = $employees[$report['employee']];
 $location = $locations[$report['location']];
 $outcome = $report['won'] ? 'Shift complete' : 'Shift interrupted';
 $title = "$employee's Hitechist performance report · $location";
-$description = "$outcome · Score {$report['score']} · {$report['incidents']}/3 incidents resolved · {$report['integrity']}% systems integrity · {$report['kills']} processes killed.";
+$description = "$outcome · Score {$report['score']} · {$report['incidents']}/3 incidents resolved · {$report['integrity']}% systems integrity · {$report['productivity']}% productivity.";
 $duration = sprintf('%02d:%02d', intdiv($report['seconds'], 60), $report['seconds'] % 60);
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 if (!preg_match('/^[a-zA-Z0-9.-]+(?::[0-9]+)?$/', $host)) $host = 'localhost';
@@ -98,6 +101,7 @@ header('X-Content-Type-Options: nosniff');
         <div><dt>INCIDENTS RESOLVED</dt><dd><?= $report['incidents'] ?> / 3</dd></div>
         <div><dt>PROCESSES KILLED</dt><dd><?= $report['kills'] ?></dd></div>
         <div><dt>SYSTEMS INTEGRITY</dt><dd><?= $report['integrity'] ?>%</dd></div>
+        <div><dt>PRODUCTIVITY</dt><dd><?= $report['productivity'] ?>%</dd></div>
         <div><dt>TIME ON CALL</dt><dd><?= $duration ?></dd></div>
       </dl>
     </article>

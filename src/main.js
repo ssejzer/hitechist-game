@@ -11,7 +11,7 @@ import { MANAGER_REQUESTS, MANAGER_EMAILS, NEW_EQUIPMENT, HR_HIRES, openManagerI
   hireManagerHelp } from "./manager.js";
 import { Pacman } from "./pacman.js";
 import { createPerformanceReport, parsePerformanceReport, performanceReportText,
-  performanceReportUrl, performanceShareUrl } from "./report.js";
+  PUBLIC_GAME_URL, performanceShareUrl } from "./report.js";
 const $ = (id) => document.getElementById(id);
 if (navigator.maxTouchPoints > 0)
   document.querySelector(".arcade").classList.add("touch-device");
@@ -266,6 +266,7 @@ function renderPerformanceReport(target, report, full = false) {
   const entries = [
     ["INCIDENTS RESOLVED", `${report.incidents} / 3`],
     ["SYSTEMS INTEGRITY", `${report.integrity}%`],
+    ["PRODUCTIVITY", `${report.productivity ?? 100}%`],
     ...(full ? [["SCORE", scoreText(report.score)], ["PROCESSES KILLED", String(report.kills)],
       ["TIME ON CALL", formatTime(report.seconds)]] : []),
   ];
@@ -281,7 +282,7 @@ function renderPerformanceReport(target, report, full = false) {
   target.replaceChildren(heading, verdict, metrics);
 }
 function setReportShareLinks(report) {
-  const url = performanceShareUrl(report, location.href);
+  const url = performanceShareUrl(report);
   $("share-facebook").href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
   $("share-linkedin").href = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
   return url;
@@ -601,6 +602,8 @@ function updateHud() {
   $("health-bar").style.background = p.hp < 30 ? "#e99479" : "#b7f58e";
   $("patches").textContent = game.patches;
   $("score").textContent = scoreText(game.score);
+  $("productivity").textContent = `${game.productivity}%`;
+  show("hud-productivity", game.locationId === "manager");
   const objective = game.objectives?.[game.wave];
   const currentStep = objective?.steps?.[objective.step];
   const stepName = game.servers.find((s) => s.id === currentStep)?.name;
@@ -719,8 +722,7 @@ $("home-button").addEventListener("click", home);
 $("copy-report").addEventListener("click", async () => {
   if (!latestReport) return;
   try {
-    await navigator.clipboard.writeText(performanceReportText(latestReport,
-      performanceReportUrl(latestReport, location.href)));
+    await navigator.clipboard.writeText(performanceReportText(latestReport, PUBLIC_GAME_URL));
     $("report-share-status").textContent = "Report copied. Paste it into your post.";
   } catch {
     $("report-share-status").textContent = "Clipboard unavailable. Use a share button to post the report link.";

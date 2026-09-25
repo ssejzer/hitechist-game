@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createGame } from "../src/engine.js";
 import { createPerformanceReport, parsePerformanceReport, performanceReportText,
-  performanceReportUrl, performanceShareUrl } from "../src/report.js";
+  performanceReportUrl, performanceShareUrl, PUBLIC_GAME_URL } from "../src/report.js";
 
 test("performance report captures the finished shift and survives a share link", () => {
   const game = createGame(undefined, "office", "sebastian");
@@ -20,9 +20,11 @@ test("performance report captures the finished shift and survives a share link",
   assert.deepEqual(parsePerformanceReport(url.searchParams.get("report")), report);
   assert.match(performanceReportText(report, link), /Sebastian · SMALL OFFICE/);
   assert.match(performanceReportText(report, link), /Incidents resolved: 2\/3/);
+  assert.match(performanceReportText(report, PUBLIC_GAME_URL), /Productivity: 100%/);
   const share = new URL(performanceShareUrl(report, "https://example.com/root-access/?test=1"));
   assert.equal(share.pathname, "/root-access/share.php");
   assert.deepEqual(parsePerformanceReport(share.searchParams.get("report")), report);
+  assert.equal(new URL(performanceShareUrl(report)).origin, "https://rex5.com");
 });
 
 test("invalid shared reports are ignored", () => {

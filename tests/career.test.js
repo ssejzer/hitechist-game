@@ -473,3 +473,23 @@ test("manager waves and boss are tougher than the preceding datacenter stage", (
   const datacenter = createGame(() => 0.5, "datacenter");
   assert.ok(spawnEnemy(manager, "boss").maxHp > spawnEnemy(datacenter, "boss").maxHp);
 });
+
+test("entering the manager kitchen or bathroom lowers productivity once per visit", () => {
+  const g = createGame(() => 0.5, "manager");
+  g.spawnTimer = 100;
+  const visit = (id) => {
+    const room = LOCATIONS.manager.rooms.find((item) => item.id === id);
+    g.player.x = room.x + room.width / 2;
+    g.player.y = room.y + room.height / 2;
+    step(g, 1 / 60);
+  };
+  visit("kitchen");
+  assert.equal(g.productivity, 90);
+  step(g, 1 / 60);
+  assert.equal(g.productivity, 90);
+  visit("bathroom");
+  assert.equal(g.productivity, 80);
+  visit("kitchen");
+  assert.equal(g.productivity, 70);
+  assert.equal(g.events.filter((event) => event.type === "toast" && event.text.includes("productivity")).length, 3);
+});
