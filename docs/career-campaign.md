@@ -17,7 +17,7 @@ pixel characters. Character identity is included in session snapshots.
 | First IT job | Small office | Repair Wi-Fi, clear a Windows blue-screen and pair a Mac headset while dodging bugs; survive the office outage. |
 | Call-center IT | Employee open space and communications room | Reconnect Ethernet, clear a printer jam and activate an access card under wave pressure; protect both rooms during peak calls. |
 | Sysadmin | Two server rooms, three offices and one conference room | Restore shared services while defending equipment across six rooms; defeat a cascading infrastructure incident. |
-| Tech Lead | Multiple worldwide sites | Dispatch technicians as timed support abilities, travel via a site map and prioritize simultaneous incident waves; survive a global rollout. |
+| Tech Lead | Three nearby buildings with offices and rear datacenter rooms | Walk between buildings, dispatch technicians as timed support abilities and prioritize simultaneous incident waves; survive a global rollout. |
 | AWS datacenter role | Large datacenter buildings across availability zones | Wait at shuttle stops and ride between buildings, collect parts, defend racks and restore connectivity; contain a multi-building outage. This is a fictional arcade setting. |
 | Manager | Meeting rooms and a team operations floor | Meetings are brief decision encounters; assign teams, collect unblockers and defend sprint deadlines against interruptions; survive release week. |
 
@@ -63,10 +63,7 @@ fixed-tick deterministic simulation and bounded rendering caches.
 
 All six stages are playable. Each stage has three incident waves, ordered station
 objectives, upgrades, and a final boss. Winning unlocks the next workplace;
-unlocks and best ratings are saved locally. Tech Lead and AWS datacenter provide
-a site map with numbered keyboard shortcuts and touch buttons below the playfield. Remote technician
-support (R) repairs all equipment and grants eight seconds of cover; site travel
-grants five seconds of cover and clears held input. At the AWS datacenter, choosing a destination sets a route; the player walks to a shuttle stop, boards a circulating shuttle when it arrives, and exits at the selected building.
+unlocks and best ratings are saved locally. Tech Lead buildings are connected by walkable outdoor paths, with no instant travel controls. Remote technician support (R) repairs all equipment and grants eight seconds of cover. At the AWS datacenter, choosing a destination sets a shuttle route; each building has a north pedestrian entrance and a south entrance to its own sidewalk and shuttle stop. The long roads and gaps between availability zones are closed to pedestrians, so the player boards a circulating shuttle to reach another building.
 The title screen graphs completed stages and best ratings, and doorway approaches stay clear.
 The Manager stage has faster waves and a stronger boss. The earlier datacenter
 simulation remains available to headless tests but is not a title-screen stage.

@@ -5,6 +5,14 @@ export const TILE = 110;
 export const WORLD_COLS = Math.ceil(WORLD_WIDTH / TILE);
 export const WORLD_ROWS = Math.ceil(WORLD_HEIGHT / TILE);
 
+const MANAGER_FURNISHINGS = {
+  lounge: [["lounge-sofa", 775, 405]],
+  hardware_storage: [["laptop-shelf", 335, 405], ["display-shelf", 775, 405],
+    ["cable-shelf", 1215, 405]],
+  kitchen: [["kitchen-counter", 775, 375]],
+  bathroom: [["bathroom-sink", 335, 375], ["bathroom-toilet", 1105, 375]],
+};
+
 const hash = (x, y) => {
   const n = Math.sin(x * 127.1 + y * 311.7 + WORLD_SEED) * 43758.5453123;
   return n - Math.floor(n);
@@ -15,6 +23,8 @@ const inRect = (col, row, x, y, width, height) =>
 export const isRack = (type) => type.endsWith("-rack");
 
 export function isSolidAt(x, y, radius = 28, locationId = null) {
+  if (locationId === "manager" && x + radius > 13020 && x - radius < 13600 &&
+      y + radius > 1060 && y - radius < 1860) return true;
   return [
     [0, 0],
     [radius, 0],
@@ -24,7 +34,10 @@ export function isSolidAt(x, y, radius = 28, locationId = null) {
   ].some(([dx, dy]) => {
     const tile = blockAt(Math.floor((x + dx) / TILE), Math.floor((y + dy) / TILE), locationId);
     return isRack(tile) ||
-      (!!locationFor(locationId) && ["office-desk", "edge"].includes(tile)) ||
+      (!!locationFor(locationId) && ["office-desk", "cooling-unit", "workstation", "edge",
+        "laptop-shelf", "display-shelf", "cable-shelf", "lounge-sofa", "kitchen-counter",
+        "bathroom-sink", "bathroom-toilet"].includes(tile)) ||
+      (locationId === "datacenter" && ["road", "yard", "barrier"].includes(tile)) ||
       (locationId === "office" && tile === "plant");
   });
 }
@@ -37,25 +50,98 @@ export function blockAt(col, row, locationId = null) {
     if (col < 0 || row < 0 || col >= cols || row >= rows) return "void";
     if (col === 0 || row === 0 || col === cols - 1 || row === rows - 1) return "edge";
     const x = (col + 0.5) * TILE, y = (row + 0.5) * TILE;
+    // Open a full corridor on both sides of every room boundary. The original
+    // door coordinates need clearance after a layout is enlarged.
+    if (location.doors.some((door) => Math.abs(door.x - x) <= TILE * 2.5 &&
+        Math.abs(door.y - y) <= TILE * 2.5)) return "walkway";
     if (location.id === "datacenter") {
       const room = location.rooms.find((r) => x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height);
       if (!room) {
-        const betweenBuildings = x >= 1100 && x < 3190 &&
+        const northFrontage = location.rooms.find((r) => x >= r.x && x < r.x + r.width &&
+          y >= r.y - TILE * 2.5 && y < r.y);
+        if (northFrontage) return "sidewalk";
+        const frontage = location.rooms.find((r) => x >= r.x && x < r.x + r.width &&
+          y >= r.y + r.height && y < location.shuttleStopY + TILE * 1.5);
+        if (frontage) return "sidewalk";
+        const betweenBuildings = x >= location.rooms[0].x + location.rooms[0].width &&
+          x < location.rooms.at(-1).x &&
           !location.rooms.some((r) => x >= r.x && x < r.x + r.width);
-        return y >= 1870 || betweenBuildings ? "road" : "yard";
+        if (betweenBuildings && y >= location.rooms[0].y + location.rooms[0].height &&
+            y < location.shuttleStopY + TILE * 1.5) return "barrier";
+        return y >= location.shuttleStopY || betweenBuildings ? "road" : "yard";
       }
       const atWall = x - room.x < TILE || room.x + room.width - x <= TILE ||
         y - room.y < TILE || room.y + room.height - y <= TILE;
       if (atWall) {
-        const entrance = Math.abs(x - (room.x + room.width / 2)) <= TILE && y > room.y + room.height - TILE * 1.5;
+        const entrance = Math.abs(x - (room.x + room.width / 2)) <= room.width * 0.1 &&
+          (y < room.y + room.height * 0.1 || y > room.y + room.height * 0.9);
         return entrance ? "walkway" : "edge";
       }
-      if (Math.abs(x - (room.x + room.width / 2)) <= TILE || y > room.y + room.height - TILE * 2.5)
-        return "walkway";
+      if (Math.abs(x - (room.x + room.width / 2)) <= room.width * 0.1 || y > room.y + room.height * 0.8)
+        return "datacenter-aisle";
+      const depth = (y - room.y) / room.height;
+      const side = (x - room.x) / room.width;
+      if ((side < 0.24 || side > 0.76) && depth > 0.35 && depth < 0.7 && row % 8 === 0)
+        return "cooling-unit";
+      if ((side < 0.28 || side > 0.72) && depth > 0.17 && depth < 0.31 && row % 4 === 0)
+        return "workstation";
+    }
+    if (location.id === "tech_lead") {
+      const room = location.rooms.find((r) => x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height);
+      if (!room) {
+        const betweenBuildings = x >= location.rooms[0].x + location.rooms[0].width &&
+          x < location.rooms.at(-1).x;
+        return y >= 3250 ? "sidewalk" : betweenBuildings ? "campus-path" : "yard";
+      }
+      if (x - room.x < TILE || room.x + room.width - x <= TILE ||
+          y - room.y < TILE || room.y + room.height - y <= TILE) return "edge";
+      if (room.id.endsWith("_datacenter")) {
+        if (Math.abs(x - (room.x + room.width / 2)) < TILE * 1.6 || y > room.y + room.height * 0.76)
+          return "datacenter-aisle";
+        if (col % 3 === 0 && !location.equipment.some((e) => Math.hypot(e.x - x, e.y - y) < 190))
+          return ["compute-rack", "network-rack", "storage-rack"][row % 3];
+        return "datacenter-floor";
+      }
+      if (row % 4 === 0 && col % 5 !== 0 &&
+          !location.equipment.some((e) => Math.hypot(e.x - x, e.y - y) < 190)) return "office-desk";
+      return "office-floor";
+    }
+    if (location.id === "manager") {
+      const room = location.rooms.find((r) => x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height);
+      if (!room) return "walkway";
+      if (x - room.x < TILE || room.x + room.width - x <= TILE ||
+          y - room.y < TILE || room.y + room.height - y <= TILE) return "edge";
+      if (room.id === "soc") {
+        if (col % 5 === 0 && row % 4 === 0 &&
+            !location.equipment.some((e) => Math.hypot(e.x - x, e.y - y) < 260)) return "network-rack";
+        return "comms-floor";
+      }
+      if (room.id === "crypto_mining") {
+        if ((col + row) % 6 === 0 && x > room.x + 290 && x < room.x + room.width - 250 &&
+            y > room.y + 310 && y < room.y + room.height - 350) return "compute-rack";
+        return "comms-floor";
+      }
+      if (room.id === "conference") {
+        if (Math.abs(x - (room.x + room.width * 0.52)) < TILE / 2 &&
+            Math.abs(y - (room.y + room.height * 0.6)) < TILE / 2) return "office-desk";
+        return "manager-floor";
+      }
+      const furnishing = MANAGER_FURNISHINGS[room.id];
+      const prop = furnishing?.find(([, dx, dy]) =>
+        Math.abs(x - room.x - dx) < TILE / 2 && Math.abs(y - room.y - dy) < TILE / 2);
+      if (prop) return prop[0];
+      if (room.id === "hardware_storage") return "storage-floor";
+      if (room.id === "kitchen" || room.id === "bathroom") return "tile-floor";
+      if (room.id === "playroom" || room.id === "lounge") return "manager-floor";
+      if (col % 6 === 0 && row % 5 === 0 &&
+          !location.equipment.some((e) => Math.hypot(e.x - x, e.y - y) < 260) &&
+          !location.interactions.some((e) => Math.hypot(e.x - x, e.y - y) < 260))
+        return "office-desk";
+      return room.id === "private_office" ? "office-floor" : "manager-floor";
     }
     if (location.rooms.length > 1 &&
         !location.rooms.some((room) => x >= room.x && x <= room.x + room.width && y >= room.y && y <= room.y + room.height) &&
-        !location.doors.some((door) => Math.abs(door.x - x) <= TILE * 0.7 && Math.abs(door.y - y) <= TILE * 2))
+        !location.doors.some((door) => Math.abs(door.x - x) <= TILE * 2.5 && Math.abs(door.y - y) <= TILE * 2.5))
       return "edge";
     // Keep both approaches to each doorway free of desks and racks.
     if (location.doors.some((door) => Math.abs(door.x - x) <= TILE * 2.5 && Math.abs(door.y - y) <= TILE * 1.6))
@@ -63,12 +149,33 @@ export function blockAt(col, row, locationId = null) {
     if (location.id === "office" &&
         ((col === 2 || col === 17) && (row === 2 || row === 11)))
       return "plant";
+    if (location.id === "call_center") {
+      const comms = location.rooms.find((room) => room.id === "comms");
+      if (x >= comms.x && x < comms.x + comms.width && y >= comms.y && y < comms.y + comms.height) {
+        if (col % 3 === 0 && row % 3 !== 1 &&
+            Math.abs(y - (comms.y + comms.height / 2)) > TILE * 2 &&
+            !location.equipment.some((e) => Math.hypot(e.x - x, e.y - y) < 200))
+          return "network-rack";
+        return "comms-floor";
+      }
+    }
+    if (location.id === "datacenter" && col % 4 === 0 && row > 2 && row < rows - 2 &&
+        !location.rooms.some((r) => Math.abs(x - (r.x + r.width / 2)) < r.width * 0.13 || y > r.y + r.height * 0.79) &&
+        !location.equipment.some((e) => Math.hypot(e.x - x, e.y - y) < 210))
+      return ["compute-rack", "storage-rack", "network-rack"][Math.abs(row + col) % 3];
+    if (location.id === "office" && col % 5 !== 0 && row % 4 === 0 && row > 2 && row < rows - 2 &&
+        !location.equipment.some((e) => Math.hypot(e.x - x, e.y - y) < 175)) return "office-desk";
     if ((col + row * 3) % 11 === 0 && row > 2 && row < rows - 2 &&
         !location.equipment.some((e) => Math.hypot(e.x - (col + 0.5) * TILE, e.y - (row + 0.5) * TILE) < 175))
-      return ["sysadmin", "datacenter"].includes(location.id) ? "compute-rack" : "office-desk";
+      return location.id === "datacenter" || (location.id === "sysadmin" &&
+        location.rooms.some((room) => room.id.startsWith("server") &&
+          x >= room.x && x < room.x + room.width && y >= room.y && y < room.y + room.height))
+        ? "compute-rack" : "office-desk";
     if ((col + row) % 5 === 0) return "walkway";
-    if (location.id === "call_center" && x >= 1540) return "comms-floor";
-    return ({ sysadmin: "server-floor", tech_lead: "site-floor", datacenter: "datacenter-floor", manager: "manager-floor" })[location.id] || "office-floor";
+    if (location.id === "sysadmin") return location.rooms.some((room) => room.id.startsWith("server") &&
+      x >= room.x && x < room.x + room.width && y >= room.y && y < room.y + room.height)
+      ? "server-floor" : "office-floor";
+    return ({ tech_lead: "site-floor", datacenter: "datacenter-floor", manager: "manager-floor" })[location.id] || "office-floor";
   }
   if (col < 0 || row < 0 || col >= WORLD_COLS || row >= WORLD_ROWS)
     return "void";

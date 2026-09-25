@@ -3,6 +3,8 @@ import { isSolidAt } from "./world.js";
 import { locationFor } from "./career.js";
 import { seededRandom } from "./random.js";
 import { createBystanders, advanceBystanders } from "./bystanders.js";
+import { createPlayroomPets, advancePlayroomPets } from "./pets.js";
+import { openManagerRequest } from "./manager.js";
 export { WORLD_WIDTH, WORLD_HEIGHT } from "./config.js";
 export const WIDTH = 1120,
   HEIGHT = 620;
@@ -88,7 +90,8 @@ export const wavesFor = (g) => locationFor(g.locationId)?.waves ?? WAVES;
 export const boundsFor = (g) => locationFor(g.locationId) ?? { width: WORLD_WIDTH, height: WORLD_HEIGHT };
 export function coffeeMachinesFor(location) {
   if (!location || location.id === "datacenter") return [];
-  return location.rooms.map((room) => {
+  return location.rooms.filter((room) => location.id !== "manager" ||
+    !["playroom", "hardware_storage", "bathroom"].includes(room.id)).map((room) => {
     const candidates = [
       [0.32, 0.32], [0.68, 0.32], [0.32, 0.68], [0.68, 0.68],
       [0.5, 0.28], [0.5, 0.72], [0.28, 0.5], [0.72, 0.5],
@@ -132,6 +135,14 @@ export function createGame(random = seededRandom(WORLD_SEED), locationId = null,
     floaters: [],
     pulses: [],
     bystanders: [],
+    playroomPets: createPlayroomPets(location?.id),
+    pendingManagerRequest: null,
+    managerEmailsAnswered: 0,
+    hardwareBudget: location?.id === "manager" ? 80 : 0,
+    oldMachines: location?.id === "manager" ? 3 : 0,
+    newEquipment: [],
+    bitcoins: 0,
+    miningCooldown: 0,
     coffeeMachines: coffeeMachinesFor(location),
     drone: null,
     events: [],
@@ -163,7 +174,7 @@ export function createGame(random = seededRandom(WORLD_SEED), locationId = null,
       y: location?.start.y ?? WORLD_HEIGHT / 2,
       hp: 100,
       maxHp: 100,
-      speed: 172,
+      speed: location?.id === "manager" ? 340 : 172,
       damage: 18,
       fireRate: 0.38,
       fireTimer: 0,
@@ -424,10 +435,11 @@ export function repair(g) {
   emit(g, "repair");
   return true;
 }
-const SHUTTLE_DWELL = 2.1;
-const SHUTTLE_STOP_Y = 1870;
-const SHUTTLE_ROAD_Y = 2145;
-const shuttleStop = (room) => ({ x: room.x + room.width / 2, y: SHUTTLE_STOP_Y });
+const SHUTTLE_DWELL = 1.15;
+const shuttleStop = (room) => ({
+  x: room.x + room.width / 2,
+  y: locationFor("datacenter").shuttleStopY,
+});
 export function nearestShuttleStop(g) {
   const rooms = locationFor(g.locationId)?.rooms;
   if (g.locationId !== "datacenter" || !rooms) return null;
@@ -437,19 +449,20 @@ export function nearestShuttleStop(g) {
   return { room, ...shuttleStop(room), distance: distance(g.player, shuttleStop(room)) };
 }
 const shuttleNext = (shuttle, count) => (shuttle.from + shuttle.direction + count) % count;
-const shuttleDriveTime = (from, to) => 1.2 + Math.abs(from.x - to.x) / 680;
+const shuttleDriveTime = (from, to) => 0.7 + Math.abs(from.x - to.x) / 1100;
 
 export function shuttlePosition(g, shuttle) {
   const rooms = locationFor(g.locationId)?.rooms;
   if (!rooms || !shuttle) return null;
   const from = shuttleStop(rooms[shuttle.from]);
   const to = shuttleStop(rooms[shuttleNext(shuttle, rooms.length)]);
+  const roadY = locationFor(g.locationId).shuttleRoadY;
   const drive = shuttleDriveTime(from, to);
   if (shuttle.elapsed < SHUTTLE_DWELL) return { ...from, facing: shuttle.direction };
   const t = Math.min(1, (shuttle.elapsed - SHUTTLE_DWELL) / drive);
-  if (t < 0.18) return { x: from.x, y: from.y + (SHUTTLE_ROAD_Y - from.y) * t / 0.18, facing: shuttle.direction };
-  if (t > 0.82) return { x: to.x, y: SHUTTLE_ROAD_Y + (to.y - SHUTTLE_ROAD_Y) * (t - 0.82) / 0.18, facing: shuttle.direction };
-  return { x: from.x + (to.x - from.x) * (t - 0.18) / 0.64, y: SHUTTLE_ROAD_Y, facing: Math.sign(to.x - from.x) || shuttle.direction };
+  if (t < 0.18) return { x: from.x, y: from.y + (roadY - from.y) * t / 0.18, facing: shuttle.direction };
+  if (t > 0.82) return { x: to.x, y: roadY + (to.y - roadY) * (t - 0.82) / 0.18, facing: shuttle.direction };
+  return { x: from.x + (to.x - from.x) * (t - 0.18) / 0.64, y: roadY, facing: Math.sign(to.x - from.x) || shuttle.direction };
 }
 
 function advanceShuttles(g, dt) {
@@ -468,42 +481,29 @@ function advanceShuttles(g, dt) {
         g.vehicle.phase = "exiting";
         g.vehicle.elapsed = 0;
         g.vehicle.exitFrom = to;
-        g.vehicle.exitTo = { x: to.x, y: rooms[next].y + rooms[next].height - 180 };
+        g.vehicle.exitTo = { x: to.x, y: rooms[next].y + rooms[next].height * 0.89 };
         emit(g, "toast", { text: `${rooms[next].name}: shuttle parked. Exiting now.` });
       }
     }
   }
 }
 
-// Worldwide sites still fast travel. At the AWS datacenter, this only requests
-// a destination; boarding requires the player to wait at an actual shuttle stop.
+// Destination selection requests a datacenter shuttle; boarding requires an
+// actual stop. The Tech Lead campus is crossed entirely on foot.
 export function travel(g, roomId) {
   const location = locationFor(g.locationId);
   const room = location?.travel && location.rooms.find((r) => r.id === roomId);
-  if (g.mode !== "playing" || !room || g.vehicle) return false;
-  if (g.locationId === "datacenter") {
-    const current = location.rooms.find((r) => g.player.x >= r.x && g.player.x <= r.x + r.width &&
-      g.player.y >= r.y && g.player.y <= r.y + r.height);
-    if (current?.id === roomId) return false;
-    g.shuttleDestination = roomId;
-    emit(g, "toast", { text: `${room.name} selected as your shuttle destination.` });
-    return true;
-  }
-  if (g.travelCooldown > 0) return false;
-  const x = room.x + room.width / 2, y = room.y + room.height / 2;
-  if (distance(g.player, { x, y }) < 100) return false;
-  g.player.x = x;
-  g.player.y = y;
-  g.player.invincible = 3;
-  g.grace = 5;
-  emit(g, "toast", { text: `Arrived at ${room.name}. 5 seconds of site cover.` });
-  g.travelCooldown = 2;
-  g.shots = g.shots.filter((s) => !s.hostile);
-  g.enemies = g.enemies.filter((e) => distance(e, g.player) > 130);
+  if (g.mode !== "playing" || g.locationId !== "datacenter" || !room || g.vehicle) return false;
+  const current = location.rooms.find((r) => g.player.x >= r.x && g.player.x <= r.x + r.width &&
+    g.player.y >= r.y && g.player.y <= r.y + r.height);
+  if (current?.id === roomId) return false;
+  g.shuttleDestination = roomId;
+  emit(g, "toast", { text: `${room.name} selected as your shuttle destination.` });
   return true;
 }
 export function dispatchSupport(g) {
-  if (g.mode !== "playing" || !locationFor(g.locationId)?.travel || g.supportCooldown > 0) return false;
+  const location = locationFor(g.locationId);
+  if (g.mode !== "playing" || !(location?.travel || location?.support) || g.supportCooldown > 0) return false;
   for (const s of g.servers) s.hp = Math.min(100, s.hp + 35);
   g.grace = Math.max(g.grace, 8);
   g.supportCooldown = 24;
@@ -563,12 +563,14 @@ export function step(g, dt, input = {}) {
   g.waveTime += dt;
   g.travelCooldown = Math.max(0, g.travelCooldown - dt);
   g.supportCooldown = Math.max(0, g.supportCooldown - dt);
+  g.miningCooldown = Math.max(0, (g.miningCooldown ?? 0) - dt);
   g.grace = Math.max(0, g.grace - dt);
   for (const machine of g.coffeeMachines) machine.cooldown = Math.max(0, machine.cooldown - dt);
   g.banner = Math.max(0, g.banner - dt);
   g.shake = Math.max(0, g.shake - dt * 22);
   advanceShuttles(g, dt);
   advanceBystanders(g, dt);
+  advancePlayroomPets(g, dt);
   const p = g.player;
   const bounds = boundsFor(g);
   const oldX = p.x,
@@ -650,7 +652,7 @@ export function step(g, dt, input = {}) {
       const rooms = locationFor(g.locationId).rooms;
       const stopIndex = rooms.findIndex((room) => distance(p, shuttleStop(room)) < 150);
       if (stopIndex >= 0 && rooms[stopIndex].id !== g.shuttleDestination) {
-        const shuttle = g.shuttles.find((s) => s.from === stopIndex && s.elapsed < SHUTTLE_DWELL - 0.7);
+        const shuttle = g.shuttles.find((s) => s.from === stopIndex && s.elapsed < SHUTTLE_DWELL - 0.2);
         if (shuttle) {
           g.vehicle = {
             shuttleId: shuttle.id, destinationId: g.shuttleDestination,
@@ -693,6 +695,7 @@ export function step(g, dt, input = {}) {
     if (!useCoffee(g)) repair(g);
     g.repairTimer = 0.65;
   }
+  if (openManagerRequest(g)) return;
   g.spawnTimer -= dt;
   if (g.spawnTimer <= 0 && g.enemies.length < 55 && !g.bossKilled) {
     const roll = g.random();

@@ -181,6 +181,49 @@
                 </div>
               </div>
             </div>
+            <div class="overlay hidden" id="manager-request-screen">
+              <div class="modal manager-modal" role="dialog" aria-modal="true" aria-labelledby="manager-request-title">
+                <span class="eyebrow">A TEAM MEMBER NEEDS A DECISION</span>
+                <h2 id="manager-request-title"></h2>
+                <p id="manager-request-copy"></p>
+                <div class="manager-actions" id="manager-request-actions"></div>
+              </div>
+            </div>
+            <div class="overlay hidden" id="manager-email-screen">
+              <div class="modal manager-modal" role="dialog" aria-modal="true" aria-labelledby="manager-email-title">
+                <span class="eyebrow">YOUR PRIVATE OFFICE / INBOX</span>
+                <h2 id="manager-email-title">Email</h2>
+                <p id="manager-email-copy"></p>
+                <div class="manager-actions" id="manager-email-actions"></div>
+                <button class="secondary-button" id="manager-email-close">CLOSE COMPUTER</button>
+              </div>
+            </div>
+            <div class="overlay hidden" id="manager-arcade-screen">
+              <div class="modal manager-modal pacman-modal" role="dialog" aria-modal="true" aria-labelledby="pacman-title">
+                <span class="eyebrow">PLAYROOM / ARCADE CABINET</span>
+                <h2 id="pacman-title">PAC-MAN<span>.</span></h2>
+                <canvas id="pacman-canvas" width="374" height="242" aria-label="Pac-Man maze"></canvas>
+                <p id="pacman-status" role="status"></p>
+                <div class="pacman-controls" aria-label="Pac-Man direction controls">
+                  <button data-pacman-key="arrowleft" aria-label="Left">←</button>
+                  <button data-pacman-key="arrowup" aria-label="Up">↑</button>
+                  <button data-pacman-key="arrowdown" aria-label="Down">↓</button>
+                  <button data-pacman-key="arrowright" aria-label="Right">→</button>
+                </div>
+                <p>ARROW KEYS / WASD TO MOVE</p>
+                <button class="secondary-button" id="pacman-restart">RESTART</button>
+                <button class="secondary-button" id="pacman-close">LEAVE CABINET</button>
+              </div>
+            </div>
+            <div class="overlay hidden" id="manager-equipment-screen">
+              <div class="modal manager-modal" role="dialog" aria-modal="true" aria-labelledby="manager-equipment-title">
+                <span class="eyebrow" id="manager-equipment-kicker">MANAGER / EQUIPMENT</span>
+                <h2 id="manager-equipment-title">Equipment</h2>
+                <p id="manager-equipment-copy" role="status"></p>
+                <div class="manager-actions" id="manager-equipment-actions"></div>
+                <button class="secondary-button" id="manager-equipment-close">LEAVE ROOM</button>
+              </div>
+            </div>
             <div class="overlay hidden" id="end-screen">
               <div class="modal end-modal">
                 <img
@@ -327,9 +370,9 @@
         is over. Pick an upgrade between incidents.
       </p>
       <p class="manual-tip">
-        At worldwide sites, press 1–3 or tap the site map to travel. At the AWS
-        datacenter, choose an AZ, walk to your building's marked shuttle stop,
-        and stay there until a shuttle arrives;
+        In Tech Lead, walk between the nearby buildings and use each office's rear
+        datacenter room. At the AWS datacenter, press 1–3 or tap an AZ, then walk
+        to your building's south shuttle stop and stay there until a shuttle arrives;
         boarding happens automatically. Press R or tap Dispatch Support to protect every site. On
         touchscreens, drag the left joystick and use the action buttons. Press P
         or Escape to pause. Your best score stays on this browser.

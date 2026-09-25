@@ -12,6 +12,8 @@ const ENVIRONMENT_ANCHORS = {
   "rack-compute": 128, "rack-storage": 128, "rack-network": 128,
   "utility-console": 125, "coffee-machine": 124, "office-plant": 121,
 };
+const ROOM_FURNISHINGS = ["laptop-shelf", "display-shelf", "cable-shelf", "lounge-sofa",
+  "kitchen-counter", "bathroom-sink", "bathroom-toilet"];
 
 export class Renderer {
   constructor(canvas) {
@@ -43,6 +45,8 @@ export class Renderer {
     this.talScene.src = `${import.meta.env.BASE_URL}assets/characters/tal-assistant-scene.png`;
     this.shuttleSprite = new Image();
     this.shuttleSprite.src = `${import.meta.env.BASE_URL}assets/shuttle.png`;
+    this.arcadeSprite = new Image();
+    this.arcadeSprite.src = `${import.meta.env.BASE_URL}assets/isometric/arcade-cabinet.png`;
     this.pet = null;
     this.world = new WorldChunks();
     this.tiles = [];
@@ -101,7 +105,9 @@ export class Renderer {
     if (entity.type === "utility") return "utility-console";
     if (entity.type === "plant") return "office-plant";
     if (entity.type === "office-desk")
-      return locationId === "manager" && entity.x < 1540 ? "meeting-table" : "office-desk";
+      return locationId === "manager" && ["meetings", "conference"].includes(
+        locationFor("manager").rooms.find((room) => entity.x >= room.x && entity.x < room.x + room.width &&
+          entity.y >= room.y && entity.y < room.y + room.height)?.id) ? "meeting-table" : "office-desk";
     return null;
   }
   stationSpriteName(entity, locationId) {
@@ -153,6 +159,90 @@ export class Renderer {
     this.rect(ctx, x - 4, y - 29, 25, 17, "#1c3439");
     this.rect(ctx, x, y - 26, 17, 10, "#8fd7c5");
   }
+  roomFurnishing(ctx, x, y, type) {
+    if (type.endsWith("-shelf")) {
+      this.rect(ctx, x - 34, y - 70, 68, 69, "#5b655e");
+      for (const shelfY of [y - 62, y - 35, y - 8]) {
+        this.rect(ctx, x - 29, shelfY + 19, 58, 5, "#ad9470");
+        if (type === "laptop-shelf") {
+          this.rect(ctx, x - 23, shelfY, 21, 15, "#263b45");
+          this.rect(ctx, x + 5, shelfY, 20, 15, "#263b45");
+          this.line(ctx, [[x - 26, shelfY + 16], [x, shelfY + 16]], "#b8d9d4", 3);
+        } else if (type === "display-shelf") {
+          this.rect(ctx, x - 24, shelfY, 23, 16, "#243a45");
+          this.rect(ctx, x + 3, shelfY, 23, 16, "#243a45");
+          this.line(ctx, [[x - 20, shelfY + 4], [x - 6, shelfY + 4]], "#85c0c3", 2);
+        } else {
+          for (const offset of [-18, 0, 18]) {
+            ctx.strokeStyle = "#293d48";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(x + offset, shelfY + 10, 7, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+        }
+      }
+      this.text(ctx, type === "laptop-shelf" ? "LAPTOPS" : type === "display-shelf" ? "SCREENS" : "CABLES",
+        x, y - 76, "#dcebd0", 8, "center");
+    } else if (type === "lounge-sofa") {
+      this.rect(ctx, x - 42, y - 35, 84, 30, "#417f79");
+      this.rect(ctx, x - 45, y - 10, 90, 25, "#60a69a");
+      this.rect(ctx, x - 45, y - 14, 12, 30, "#36625f");
+      this.rect(ctx, x + 33, y - 14, 12, 30, "#36625f");
+    } else if (type === "kitchen-counter") {
+      this.rect(ctx, x - 45, y - 29, 90, 43, "#69827d");
+      this.rect(ctx, x - 48, y - 36, 96, 12, "#d4d5c2");
+      this.rect(ctx, x - 31, y - 33, 25, 6, "#5e999f");
+      this.rect(ctx, x + 16, y - 32, 19, 7, "#3d5251");
+      this.text(ctx, "KITCHENETTE", x, y - 47, "#e8edcf", 8, "center");
+    } else if (type === "bathroom-sink") {
+      this.rect(ctx, x - 30, y - 32, 60, 45, "#b9d2d0");
+      this.rect(ctx, x - 24, y - 39, 48, 22, "#e1efea");
+      this.rect(ctx, x - 4, y - 46, 8, 12, "#7da7a8");
+    } else if (type === "bathroom-toilet") {
+      this.rect(ctx, x - 21, y - 39, 42, 23, "#d6e8e3");
+      this.rect(ctx, x - 18, y - 14, 36, 28, "#e6f2eb");
+      this.rect(ctx, x - 13, y - 8, 26, 13, "#91b5b7");
+    }
+  }
+  seatedWorker(ctx, x, y, variant) {
+    const shirt = ["#d87972", "#e2bd74", "#7cb8b2", "#8d9bd0"][variant % 4];
+    this.rect(ctx, x + 13, y - 24, 24, 19, "#304147");
+    this.polygon(ctx, [[x + 12, y - 44], [x + 27, y - 50], [x + 40, y - 36], [x + 24, y - 27]], shirt);
+    ctx.fillStyle = "#dfaa84";
+    ctx.beginPath();
+    ctx.arc(x + 27, y - 55, 9, 0, Math.PI * 2);
+    ctx.fill();
+    this.rect(ctx, x + 19, y - 66, 16, 5, "#293744");
+    this.line(ctx, [[x + 18, y - 40], [x + 3, y - 35], [x - 4, y - 32]], "#dfaa84", 4);
+    this.rect(ctx, x - 8, y - 34, 12, 3, "#dfaa84");
+  }
+  coolingUnit(ctx, x, y) {
+    this.polygon(ctx, [[x - 31, y - 73], [x + 3, y - 89], [x + 39, y - 72], [x + 5, y - 55]], "#e0e9e9");
+    this.polygon(ctx, [[x - 31, y - 73], [x + 5, y - 55], [x + 5, y + 4], [x - 31, y - 14]], "#a9bec7");
+    this.polygon(ctx, [[x + 5, y - 55], [x + 39, y - 72], [x + 39, y - 13], [x + 5, y + 4]], "#d0dfe3");
+    for (const offset of [-45, -20]) {
+      ctx.strokeStyle = "#55727f";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(x + 22, y + offset, 10, 15, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      this.line(ctx, [[x + 18, y + offset - 8], [x + 26, y + offset + 8]], "#55727f", 2);
+      this.line(ctx, [[x + 26, y + offset - 8], [x + 18, y + offset + 8]], "#55727f", 2);
+    }
+    this.rect(ctx, x - 25, y - 19, 20, 4, "#58b5d2");
+    this.text(ctx, "A/C", x + 20, y - 58, "#3d6471", 8, "center");
+  }
+  workStation(ctx, x, y) {
+    this.polygon(ctx, [[x - 42, y - 18], [x - 4, y - 38], [x + 45, y - 11], [x + 4, y + 11]], "#b5c8cf");
+    for (const offset of [-22, 9]) {
+      this.polygon(ctx, [[x + offset - 17, y - 54], [x + offset + 4, y - 65],
+        [x + offset + 4, y - 36], [x + offset - 17, y - 25]], "#1a394a");
+      this.line(ctx, [[x + offset - 14, y - 48], [x + offset - 1, y - 55]], "#7bd5f0", 2);
+    }
+    this.rect(ctx, x + 29, y - 33, 7, 4, "#8de3c9");
+    this.seatedWorker(ctx, x - 19, y + 18, 2);
+  }
   officeEquipment(ctx, x, y, equipment, time) {
     const color = equipment.hp <= 0 ? "#db7764" : "#b7f58e";
     this.polygon(ctx, [[x - 29, y], [x, y - 15], [x + 32, y], [x + 2, y + 16]], "#263b43");
@@ -183,7 +273,7 @@ export class Renderer {
         : type === "edge"
           ? "#102522"
           : type === "office-floor"
-            ? variant ? "#586b6a" : "#607574"
+            ? variant ? "#697976" : "#768681"
           : type === "comms-floor"
             ? variant ? "#344e5d" : "#3b5765"
           : type === "server-floor"
@@ -191,11 +281,23 @@ export class Renderer {
           : type === "site-floor"
             ? variant ? "#4b5f59" : "#536962"
           : type === "datacenter-floor"
-            ? variant ? "#34464f" : "#3a4e57"
+            ? variant ? "#243b50" : "#2b465b"
+          : type === "datacenter-aisle"
+            ? variant ? "#416074" : "#496c80"
           : type === "manager-floor"
             ? variant ? "#68665f" : "#716f66"
+          : type === "storage-floor"
+            ? variant ? "#59675f" : "#64736a"
+          : type === "tile-floor"
+            ? variant ? "#9caeaa" : "#afbfba"
           : type === "road"
             ? variant ? "#26363c" : "#2c3d43"
+          : type === "barrier"
+            ? variant ? "#665342" : "#725d46"
+          : type === "sidewalk"
+            ? variant ? "#738a8c" : "#7f9698"
+          : type === "campus-path"
+            ? variant ? "#687a76" : "#758782"
           : type === "yard"
             ? variant ? "#39514a" : "#40584f"
           : type === "walkway"
@@ -204,7 +306,7 @@ export class Renderer {
               ? "#26383d"
               : "#293b3f";
     this.diamond(ctx, point.x, point.y, base);
-    ctx.strokeStyle = type === "walkway" ? "#435457" : "#314449";
+    ctx.strokeStyle = type === "datacenter-aisle" ? "#62c9e288" : type === "walkway" ? "#435457" : "#314449";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(point.x, point.y - 27);
@@ -213,6 +315,14 @@ export class Renderer {
     ctx.lineTo(point.x - 54, point.y);
     ctx.closePath();
     ctx.stroke();
+    if (type === "datacenter-aisle") {
+      this.line(ctx, [[x - 29, y - 12], [x + 29, y + 12]], "#7be1ff32", 3);
+      return;
+    }
+    if (type === "sidewalk" || type === "campus-path") {
+      this.line(ctx, [[x - 43, y - 3], [x + 43, y + 3]], "#c7e4e477", 2);
+      return;
+    }
     if (type === "walkway") {
       this.line(
         ctx,
@@ -236,6 +346,11 @@ export class Renderer {
     }
     if (type === "road") {
       if (variant) this.line(ctx, [[x - 19, y - 9], [x + 19, y + 9]], "#d6ba71bb", 3);
+      return;
+    }
+    if (type === "barrier") {
+      this.line(ctx, [[x - 35, y - 12], [x + 35, y + 12]], "#f6ca69", 5);
+      this.line(ctx, [[x - 35, y + 12], [x + 35, y - 12]], "#25323a", 4);
       return;
     }
     if (type === "edge")
@@ -464,17 +579,50 @@ export class Renderer {
     ctx.fillStyle = "#0a191a";
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
     for (const tile of this.tiles) this.drawTile(ctx, tile.col, tile.row, time);
+    if (this.world.locationId === "manager") {
+      const corners = [[13020, 1060], [13600, 1060], [13600, 1860], [13020, 1860]]
+        .map(([x, y]) => this.screen(x, y));
+      ctx.beginPath();
+      ctx.moveTo(corners[0].x, corners[0].y);
+      for (const point of corners.slice(1)) ctx.lineTo(point.x, point.y);
+      ctx.closePath();
+      ctx.fillStyle = "#2b7285";
+      ctx.fill();
+      ctx.strokeStyle = "#a6d9d7";
+      ctx.lineWidth = 5;
+      ctx.stroke();
+      for (const [x, y] of [[13180, 1300], [13400, 1550], [13250, 1720]]) {
+        const p = this.screen(x, y);
+        ctx.strokeStyle = "#b7eff077";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, 15 + Math.sin(time * 2 + x) * 3, 5, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
     if (this.world.locationId === "datacenter") {
       for (const room of locationFor("datacenter").rooms) {
-        const entrance = this.screen(room.x + room.width / 2, room.y + room.height + 20);
-        if (entrance.x > 80 && entrance.x < WIDTH - 80 && entrance.y > 70 && entrance.y < HEIGHT - 45)
-          this.worldTag(ctx, room.name, entrance.x, entrance.y, "#f6cf7f");
-        const stop = this.screen(room.x + room.width / 2, 1870);
+        for (const [y, label] of [
+          [room.y + 130, "NORTH ENTRY"],
+          [room.y + room.height - 120, "SOUTH EXIT · SHUTTLE"],
+        ]) {
+          const entrance = this.screen(room.x + room.width / 2, y);
+          if (entrance.x > 80 && entrance.x < WIDTH - 80 && entrance.y > 70 && entrance.y < HEIGHT - 45)
+            this.worldTag(ctx, label, entrance.x, entrance.y, "#f6cf7f");
+        }
+        const stop = this.screen(room.x + room.width / 2, locationFor("datacenter").shuttleStopY);
         if (stop.x > 85 && stop.x < WIDTH - 85 && stop.y > 100 && stop.y < HEIGHT - 45) {
           this.rect(ctx, stop.x - 27, stop.y + 4, 54, 5, "#d1bc76");
           this.rect(ctx, stop.x - 2, stop.y - 45, 4, 48, "#afc5c0");
           this.worldTag(ctx, `SHUTTLE STOP · ${room.id.slice(-1).toUpperCase()}`, stop.x, stop.y - 49, "#f6cf7f");
         }
+      }
+    }
+    if (this.world.locationId === "tech_lead") {
+      for (const room of locationFor("tech_lead").rooms.filter((r) => r.id.endsWith("_office"))) {
+        const entrance = this.screen(room.x + room.width / 2, room.y + room.height + 65);
+        if (entrance.x > 80 && entrance.x < WIDTH - 80 && entrance.y > 70 && entrance.y < HEIGHT - 45)
+          this.worldTag(ctx, `${room.name} · ENTRY`, entrance.x, entrance.y, "#f6cf7f");
       }
     }
     if (this.world.locationId) return;
@@ -722,10 +870,12 @@ export class Renderer {
     if (!image?.complete || !image.naturalWidth) return;
     const width = pet.species === "dog" ? 58 : 46;
     const height = pet.species === "dog" ? 76 : 66;
-    const frame = pet.moving ? 1 + Math.floor(time * 8) % 2 : Math.floor(time * 0.6) % 7 === 0 ? 3 : 0;
+    const frame = pet.moving ? 1 + Math.floor(time * 8) % 2 :
+      pet.playing ? 3 : Math.floor(time * 0.6) % 7 === 0 ? 3 : 0;
     const sourceWidth = image.naturalWidth / 4;
     ctx.save();
     ctx.translate(Math.round(pet.x), Math.round(pet.y));
+    if (pet.playing && !this.reduced) ctx.translate(0, -Math.max(0, Math.sin(time * 9)) * 4);
     ctx.fillStyle = "#081a1b88";
     ctx.beginPath();
     ctx.ellipse(0, 3, width * 0.33, 5, 0, 0, Math.PI * 2);
@@ -733,6 +883,36 @@ export class Renderer {
     ctx.scale(pet.facing > 0 ? -1 : 1, 1);
     ctx.drawImage(image, frame * sourceWidth, 0, sourceWidth, image.naturalHeight,
       -width / 2, -height * 0.82, width, height);
+    if (pet.playing) {
+      ctx.fillStyle = pet.species === "dog" ? "#f5bf64" : "#8ad8de";
+      ctx.beginPath();
+      ctx.arc(-width * 0.55, -3, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  drawBarbecue(ctx, p, time) {
+    ctx.save();
+    ctx.translate(Math.round(p.x), Math.round(p.y));
+    this.rect(ctx, -23, -26, 5, 30, "#59666a");
+    this.rect(ctx, 18, -26, 5, 30, "#59666a");
+    this.rect(ctx, -33, -45, 66, 22, "#26383e");
+    this.rect(ctx, -28, -40, 56, 8, "#d76b42");
+    for (let x = -25; x < 27; x += 8) this.rect(ctx, x, -45, 3, 21, "#aebfba");
+    this.rect(ctx, -26, -59, 52, 12, "#26383e");
+    if (!this.reduced) for (let i = 0; i < 3; i++) {
+      const rise = (time * 18 + i * 11) % 30;
+      this.rect(ctx, -14 + i * 13, -62 - rise, 4, 8, "#d9d7c888");
+    }
+    ctx.restore();
+  }
+  drawStoredMachine(ctx, p, installed) {
+    ctx.save();
+    ctx.translate(Math.round(p.x), Math.round(p.y));
+    this.rect(ctx, -20, -44, 40, 42, installed ? "#315c69" : "#6b5f55");
+    this.rect(ctx, -15, -38, 30, 19, installed ? "#9bd8e2" : "#414d49");
+    this.rect(ctx, -13, -13, 5, 4, installed ? "#a8ef93" : "#c9866b");
+    this.rect(ctx, -4, -13, 5, 4, installed ? "#a8ef93" : "#c9866b");
     ctx.restore();
   }
   enemyFace(ctx, e, time) {
@@ -934,16 +1114,26 @@ export class Renderer {
       ...this.tiles
         .filter(
           (t) =>
-            (isRack(t.type) || ["utility", "plant", "office-desk"].includes(t.type)) &&
+            (isRack(t.type) || ["utility", "plant", "office-desk", "cooling-unit", "workstation",
+              ...ROOM_FURNISHINGS].includes(t.type)) &&
             !g.servers.some((s) => Math.hypot(t.x - s.x, t.y - s.y) < 100),
         )
         .map((t) => ({ ...t, kind: "prop" })),
       ...g.servers.map((s) => ({ ...s, kind: "server" })),
+      ...(locationFor(g.locationId)?.interactions ?? []).map((item) => ({ ...item, kind: "manager-interaction" })),
       ...(g.coffeeMachines ?? []).map((m) => ({ ...m, kind: "coffee" })),
       ...g.enemies.map((e) => ({ ...e, kind: "enemy" })),
       ...(g.bystanders ?? []).map((person) => ({ ...person, kind: "bystander" })),
       ...g.shuttles.map((s) => ({ ...shuttlePosition(g, s), id: s.id, kind: "shuttle" })),
       ...(companion ? [companion] : []),
+      ...(g.playroomPets ?? []).map((pet) => ({ ...pet, kind: "companion" })),
+      ...(g.locationId === "manager" ? [{ x: 10800, y: 700, kind: "barbecue" }] : []),
+      ...(g.locationId === "manager" ? [
+        ...Array.from({ length: g.oldMachines }, (_, i) =>
+          ({ x: 12440 + i * 310, y: 3740, kind: "stored-machine", installed: false })),
+        ...g.newEquipment.map((id, i) =>
+          ({ x: 12440 + i * 310, y: 3240, kind: "stored-machine", installed: true, id })),
+      ] : []),
       ...(g.drone && !g.vehicle ? [{ ...g.drone, kind: "drone" }] : []),
       { ...g.player, kind: "player" },
     ].sort((a, b) => a.x + a.y - (b.x + b.y));
@@ -1001,12 +1191,24 @@ export class Renderer {
             if (entity.type === "utility") this.utilityBlock(c, 80, 112);
             if (entity.type === "plant") this.plantBlock(c, 80, 112);
             if (entity.type === "office-desk") this.officeDesk(c, 80, 112);
+            if (entity.type === "cooling-unit") this.coolingUnit(c, 80, 112);
+            if (entity.type === "workstation") this.workStation(c, 80, 112);
+            if (ROOM_FURNISHINGS.includes(entity.type)) this.roomFurnishing(c, 80, 112, entity.type);
           });
           ctx.drawImage(sprite, Math.round(p.x - 80), Math.round(p.y - 112));
         }
+        if (entity.type === "office-desk" && artName !== "meeting-table" &&
+            (entity.col + entity.row) % 3 !== 0)
+          this.seatedWorker(ctx, p.x, p.y, entity.col + entity.row);
+        if (entity.type === "network-rack" && g.locationId === "call_center" && entity.row % 9 === 0)
+          this.worldTag(ctx, entity.col % 2 ? "ROUTER" : "SWITCH", p.x, p.y - 83, "#8fdcef");
         ctx.globalAlpha = 1;
       } else if (entity.kind === "server") {
-        if (["sysadmin", "datacenter"].includes(g.locationId)) this.rack(ctx, p.x, p.y, entity.hp, time, entity.rackKind);
+        const serverRoom = locationFor(g.locationId)?.rooms.find((room) =>
+          entity.x >= room.x && entity.x < room.x + room.width && entity.y >= room.y && entity.y < room.y + room.height);
+        if (g.locationId === "datacenter" || (g.locationId === "sysadmin" && serverRoom?.id.startsWith("server")) ||
+            (g.locationId === "tech_lead" && serverRoom?.id.endsWith("_datacenter")))
+          this.rack(ctx, p.x, p.y, entity.hp, time, entity.rackKind);
         else if (g.locationId) {
           if (!this.drawEnvironmentSprite(ctx, this.stationSpriteName(entity, g.locationId), p.x, p.y))
             this.officeEquipment(ctx, p.x, p.y, entity, time);
@@ -1018,6 +1220,8 @@ export class Renderer {
       }
       else if (entity.kind === "shuttle") this.shuttle(ctx, p, time);
       else if (entity.kind === "companion") this.drawCompanion(ctx, p, time);
+      else if (entity.kind === "barbecue") this.drawBarbecue(ctx, p, time);
+      else if (entity.kind === "stored-machine") this.drawStoredMachine(ctx, p, entity.installed);
       else if (entity.kind === "coffee") {
         if (!this.drawEnvironmentSprite(ctx, "coffee-machine", p.x, p.y))
           this.coffeeMachine(ctx, p, time);
@@ -1033,6 +1237,25 @@ export class Renderer {
         this.monitoringDrone(ctx, p, time, target ? projectEntity(target) : null);
       }
       else if (entity.kind === "bystander") this.bystander(ctx, p, time);
+      else if (entity.kind === "manager-interaction") {
+        if (entity.id === "arcade" && this.arcadeSprite.complete && this.arcadeSprite.naturalWidth) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(this.arcadeSprite, Math.round(p.x - 45), Math.round(p.y - 130), 90, 130);
+          ctx.restore();
+        } else {
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          this.rect(ctx, -22, -7, 44, 11, "#162224");
+          this.rect(ctx, -17, -47, 34, 40, entity.id === "arcade" ? "#af3858" :
+            entity.id === "mining" ? "#725c36" : "#355465");
+          this.rect(ctx, -13, -42, 26, 24, entity.id === "arcade" ? "#10133a" : "#091b21");
+          this.rect(ctx, -9, -35, 18, 10, entity.id === "arcade" ? "#ffdb55" :
+            entity.id === "mining" ? "#f6cf7f" : "#99e5d0");
+          this.rect(ctx, -5, -13, 10, 4, "#d4b981");
+          ctx.restore();
+        }
+      }
       else if (entity.kind === "player") {
         if (!g.vehicle) this.player(ctx, p, time);
       }
@@ -1113,15 +1336,45 @@ export class Renderer {
         this.worldTag(ctx, "[E] REPAIR", p.x, p.y - 98);
     }
     if (!menu && g.locationId === "call_center") {
+      const rooms = locationFor("call_center").rooms;
       for (const [x, y, label] of [
-        [770, 430, "EMPLOYEE OPEN SPACE"],
-        [2145, 430, "COMMUNICATIONS ROOM"],
-        [1270, 880, "DOOR TO COMMUNICATIONS →"],
-        [1690, 880, "← DOOR TO OPEN SPACE"],
+        [rooms[0].x + rooms[0].width / 2, rooms[0].y + 320, "EMPLOYEE OPEN SPACE"],
+        [rooms[1].x + rooms[1].width / 2, rooms[1].y + 320, "COMMUNICATIONS ROOM"],
+        [locationFor("call_center").doors[0].x - 215, rooms[0].y + rooms[0].height / 2, "DOOR TO COMMUNICATIONS →"],
+        [locationFor("call_center").doors[0].x + 215, rooms[1].y + rooms[1].height / 2, "← DOOR TO OPEN SPACE"],
       ]) {
         const p = this.screen(x, y);
         if (p.x > 20 && p.x < WIDTH - 20 && p.y > 70 && p.y < HEIGHT - 30)
           this.worldTag(ctx, label, p.x, p.y, "#f6cf7f");
+      }
+    }
+    if (!menu && g.locationId === "manager") {
+      for (const [x, y, label] of [[10800, 700, "BBQ"], [13310, 1460, "SWIMMING POOL"]]) {
+        const p = this.screen(x, y);
+        if (p.x > 50 && p.x < WIDTH - 50 && p.y > 80 && p.y < HEIGHT - 40)
+          this.worldTag(ctx, label, p.x, p.y - 65, "#9be4f0");
+      }
+      for (const room of locationFor("manager").rooms) {
+        const p = this.screen(room.x + room.width / 2, room.y + Math.min(390, room.height * 0.28));
+        if (p.x > 50 && p.x < WIDTH - 50 && p.y > 80 && p.y < HEIGHT - 40)
+          this.worldTag(ctx, room.name, p.x, p.y, room.id === "soc" ? "#9be4f0" : "#f6cf7f");
+      }
+      for (const item of locationFor("manager").interactions) {
+        const p = this.screen(item.x, item.y);
+        if (p.x > 30 && p.x < WIDTH - 30 && p.y > 90 && p.y < HEIGHT - 40)
+          this.worldTag(ctx, Math.hypot(g.player.x - item.x, g.player.y - item.y) < 125
+            ? `[E] ${item.name}` : item.name, p.x, p.y - 65, "#ffdc76");
+      }
+      for (const person of g.bystanders.filter((p) => p.requestIndex != null && !p.requestResolved)) {
+        const p = this.screen(person.x, person.y);
+        if (p.x > 30 && p.x < WIDTH - 30 && p.y > 90 && p.y < HEIGHT - 40)
+          this.worldTag(ctx, "! NEEDS A DECISION", p.x, p.y - 82, "#f3a485");
+      }
+      const presenter = g.bystanders.find((person) => person.characterId === "aldo" && person.roomId === "conference");
+      if (presenter) {
+        const p = this.screen(presenter.x, presenter.y);
+        if (p.x > 30 && p.x < WIDTH - 30 && p.y > 90 && p.y < HEIGHT - 40)
+          this.worldTag(ctx, "ALDO · PRESENTING", p.x, p.y - 85, "#f6cf7f");
       }
     }
     for (const f of g.floaters) {
@@ -1174,9 +1427,17 @@ export class Renderer {
     ctx.strokeRect(mx, my, mw, mh);
     if (bounds.rooms) {
       if (g.locationId === "datacenter") {
-        this.rect(ctx, mx, my + 1870 / bounds.height * mh, mw, 440 / bounds.height * mh, "#34464a");
-        for (const [left, right] of [[1100, 1650], [2640, 3190]])
+        const dc = locationFor("datacenter");
+        this.rect(ctx, mx, my + dc.shuttleStopY / bounds.height * mh, mw,
+          (dc.shuttleRoadY + (dc.shuttleRoadY - dc.shuttleStopY) / 2 - dc.shuttleStopY) / bounds.height * mh, "#34464a");
+        for (const [left, right] of dc.rooms.slice(0, -1).map((room, i) =>
+          [room.x + room.width, dc.rooms[i + 1].x]))
           this.rect(ctx, mx + left / bounds.width * mw, my, (right - left) / bounds.width * mw, mh, "#34464a");
+        for (const room of dc.rooms)
+          for (const [top, bottom] of [[room.y - TILE * 2.5, room.y],
+            [room.y + room.height, dc.shuttleStopY + TILE * 1.5]])
+            this.rect(ctx, mx + room.x / bounds.width * mw, my + top / bounds.height * mh,
+              room.width / bounds.width * mw, (bottom - top) / bounds.height * mh, "#829a98");
       }
       ctx.strokeStyle = "#78936677";
       for (const room of bounds.rooms)
@@ -1187,26 +1448,38 @@ export class Renderer {
         this.text(ctx, "COMMS", mx + 105, my + 17, "#d7e6ce", 8, "center");
         this.text(ctx, "DOOR", mx + 72, my + 48, "#f6cf7f", 7, "center");
       }
+      if (g.locationId === "manager") {
+        const labels = { meetings: "MEET", soc: "SOC", operations: "OPS", playroom: "PLAY",
+          private_office: "OFFICE", people: "HR", release: "RELEASE", lounge: "LOUNGE",
+          hardware_storage: "GEAR", kitchen: "KITCHEN", bathroom: "BATH",
+          conference: "CONF", crypto_mining: "BTC" };
+        for (const room of bounds.rooms)
+          this.text(ctx, labels[room.id], mx + (room.x + room.width / 2) / bounds.width * mw,
+            my + (room.y + room.height / 2) / bounds.height * mh + 2, "#d7e6ce", 6, "center");
+      }
     }
-    // District boundaries make the full facility overview readable at any scale.
-    for (let i = 1; i < (g.locationId ? 2 : 4); i++) {
+    // One grid cell always represents the same world distance at every level.
+    for (let x = 1000; x < bounds.width; x += 1000) {
       this.line(
         ctx,
         [
-          [mx + (mw * i) / 4, my],
-          [mx + (mw * i) / 4, my + mh],
-        ],
-        "#46685455",
-      );
-      this.line(
-        ctx,
-        [
-          [mx, my + (mh * i) / 4],
-          [mx + mw, my + (mh * i) / 4],
+          [mx + mw * x / bounds.width, my],
+          [mx + mw * x / bounds.width, my + mh],
         ],
         "#46685455",
       );
     }
+    for (let y = 1000; y < bounds.height; y += 1000) {
+      this.line(
+        ctx,
+        [
+          [mx, my + mh * y / bounds.height],
+          [mx + mw, my + mh * y / bounds.height],
+        ],
+        "#46685455",
+      );
+    }
+    if (g.locationId) this.text(ctx, `MAP ${bounds.width} × ${bounds.height}`, mx + mw, my - 5, "#a9c8bc", 8, "right");
     if (!g.locationId) {
       ctx.strokeStyle = "#a9dba97a";
       ctx.strokeRect(

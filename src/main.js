@@ -6,6 +6,9 @@ import { AudioSystem } from "./audio.js";
 import { LocalSession } from "./session.js";
 import { CHARACTERS, getCharacter, portraitPath } from "./characters.js";
 import { createBystanders } from "./bystanders.js";
+import { MANAGER_REQUESTS, MANAGER_EMAILS, NEW_EQUIPMENT, openManagerInteraction,
+  resolveManagerRequest, answerManagerEmail, decommissionMachine, buyEquipment, collectBitcoin } from "./manager.js";
+import { Pacman } from "./pacman.js";
 const $ = (id) => document.getElementById(id);
 if (navigator.maxTouchPoints > 0)
   document.querySelector(".arcade").classList.add("touch-device");
@@ -26,6 +29,107 @@ let best = 0;
 let selectedCharacter = "sebastian";
 let selectedLocation = "office";
 let career = { unlocked: ["office"], ratings: {} };
+const pacman = new Pacman($("pacman-canvas"), $("pacman-status"));
+let pacmanTimer = null;
+function closeManagerOverlay(id) {
+  show(id, false);
+  if (pacmanTimer) { clearInterval(pacmanTimer); pacmanTimer = null; }
+  game.mode = "playing";
+  keys.clear();
+  session.clearInput();
+  canvas.focus({ preventScroll: true });
+}
+function showManagerRequest() {
+  const person = game.bystanders.find((p) => p.id === game.pendingManagerRequest);
+  if (!person) return;
+  const request = MANAGER_REQUESTS[person.requestIndex];
+  $("manager-request-title").textContent = request.subject;
+  $("manager-request-copy").textContent = request.message;
+  const holder = $("manager-request-actions");
+  holder.replaceChildren();
+  request.actions.forEach((label, index) => {
+    const button = document.createElement("button");
+    button.className = "primary-button";
+    button.textContent = label;
+    button.addEventListener("click", () => {
+      if (resolveManagerRequest(game, index)) {
+        closeManagerOverlay("manager-request-screen");
+        toast(`${request.subject}: action recorded.`, 3);
+      }
+    });
+    holder.append(button);
+  });
+  show("manager-request-screen", true);
+  holder.firstElementChild?.focus({ preventScroll: true });
+}
+function showManagerEmail() {
+  const index = game.managerEmailsAnswered;
+  const email = MANAGER_EMAILS[index];
+  $("manager-email-title").textContent = email ? email.subject : "Inbox clear";
+  $("manager-email-copy").textContent = email ? `${email.from}: ${email.body}` : "All messages answered. You can get back to the floor.";
+  const holder = $("manager-email-actions");
+  holder.replaceChildren();
+  email?.actions.forEach((label, actionIndex) => {
+    const button = document.createElement("button");
+    button.className = "primary-button";
+    button.textContent = label;
+    button.addEventListener("click", () => {
+      if (answerManagerEmail(game, index, actionIndex)) showManagerEmail();
+    });
+    holder.append(button);
+  });
+  show("manager-email-screen", true);
+  (holder.firstElementChild || $("manager-email-close")).focus({ preventScroll: true });
+}
+function showManagerArcade() {
+  pacman.reset();
+  show("manager-arcade-screen", true);
+  pacmanTimer = setInterval(() => pacman.update(), 180);
+  $("pacman-close").focus({ preventScroll: true });
+}
+function showManagerEquipment() {
+  const storage = game.mode === "manager_storage";
+  $("manager-equipment-kicker").textContent = storage ? "HARDWARE STORAGE / INVENTORY" : "CRYPTO MINING / BITCOIN";
+  $("manager-equipment-title").textContent = storage ? "Refresh the hardware" : "Mining payout";
+  const miners = game.bystanders.filter((person) => ["nenad", "luis"].includes(person.characterId) &&
+    person.roomId === "crypto_mining").map((person) => getCharacter(person.characterId).name).join(" and ");
+  $("manager-equipment-copy").textContent = storage
+    ? `Budget: ${game.hardwareBudget} · Old machines: ${game.oldMachines} · Bitcoin earned: ${game.bitcoins}`
+    : `${miners} ${miners.includes(" and ") ? "mine" : "mines"} here. Collect 1 bitcoin to add 120 to the equipment budget. Earned: ${game.bitcoins} · Budget: ${game.hardwareBudget}${game.miningCooldown > 0 ? ` · Next payout in ${Math.ceil(game.miningCooldown)}s` : ""}`;
+  const holder = $("manager-equipment-actions");
+  holder.replaceChildren();
+  const action = (label, enabled, fn) => {
+    const button = document.createElement("button");
+    button.className = "primary-button";
+    button.textContent = label;
+    button.disabled = !enabled;
+    button.addEventListener("click", () => { fn(); showManagerEquipment(); });
+    holder.append(button);
+  };
+  if (storage) {
+    action("Decommission old machine · +60 budget", game.oldMachines > 0,
+      () => decommissionMachine(game));
+    for (const item of NEW_EQUIPMENT)
+      action(`${game.newEquipment.includes(item.id) ? "INSTALLED" : "BUY"} ${item.name} · ${item.cost}`,
+        !game.newEquipment.includes(item.id) && game.hardwareBudget >= item.cost,
+        () => buyEquipment(game, item.id));
+  } else action("COLLECT 1 BITCOIN · +120 BUDGET", game.miningCooldown <= 0,
+    () => collectBitcoin(game));
+  show("manager-equipment-screen", true);
+  (holder.querySelector("button:not(:disabled)") || $("manager-equipment-close")).focus({ preventScroll: true });
+}
+function syncManagerMode() {
+  if (game.mode === "manager_request" && $("manager-request-screen").classList.contains("hidden")) showManagerRequest();
+  if (game.mode === "manager_email" && $("manager-email-screen").classList.contains("hidden")) showManagerEmail();
+  if (game.mode === "manager_arcade" && $("manager-arcade-screen").classList.contains("hidden")) showManagerArcade();
+  if (["manager_storage", "manager_mining"].includes(game.mode) && $("manager-equipment-screen").classList.contains("hidden")) showManagerEquipment();
+}
+$("manager-email-close").addEventListener("click", () => closeManagerOverlay("manager-email-screen"));
+$("pacman-close").addEventListener("click", () => closeManagerOverlay("manager-arcade-screen"));
+$("manager-equipment-close").addEventListener("click", () => closeManagerOverlay("manager-equipment-screen"));
+$("pacman-restart").addEventListener("click", () => pacman.reset());
+document.querySelectorAll("[data-pacman-key]").forEach((button) =>
+  button.addEventListener("click", () => pacman.input(button.dataset.pacmanKey)));
 try {
   best = Number(localStorage.getItem("hitechist-root-access-best")) || 0;
   selectedCharacter = getCharacter(localStorage.getItem("hitechist-root-access-character")).id;
@@ -155,6 +259,7 @@ function start() {
   });
   game = session.state;
   pendingToast = null;
+  if (pacmanTimer) { clearInterval(pacmanTimer); pacmanTimer = null; }
   updateStageInfo();
   // A new shift begins at the centre of the full facility, not at the menu's
   // showcase location. Snap the camera there so the opening frame is stable.
@@ -171,9 +276,14 @@ function start() {
     "end-screen",
     "pause-screen",
     "upgrade-screen",
+    "manager-request-screen", "manager-email-screen", "manager-arcade-screen", "manager-equipment-screen",
   ])
     show(id, false);
   for (const id of ["hud", "ability-bar", "touch-controls"]) show(id, true);
+  $("ability-bar").lastElementChild.innerHTML = game.locationId === "manager"
+    ? "<kbd>E</kbd> INTERACT / FIX · 4 PATCHES"
+    : "<kbd>E</kbd> FIX / REPAIR · 4 PATCHES";
+  $("touch-repair").textContent = game.locationId === "manager" ? "INTERACT" : "REPAIR";
   show("shuttle-guide", false);
   setupSiteMap();
   for (const id of ["switch-player-button", "end-shift-button"]) show(id, true);
@@ -197,7 +307,9 @@ function start() {
     return item;
   }));
   toast(
-    navigator.maxTouchPoints > 0
+    game.locationId === "manager"
+      ? "Explore the rooms. Use E at the computer, arcade, hardware storage, and crypto mining station."
+      : navigator.maxTouchPoints > 0
       ? "Drag the joystick to move. Hold REPAIR beside the marked station."
       : "Move with WASD / arrows. Hold E beside the marked station.",
     4,
@@ -206,20 +318,20 @@ function start() {
 function setupSiteMap() {
   const map = $("site-map"), location = locationFor(game.locationId);
   map.replaceChildren();
-  show("site-map", !!location.travel);
-  if (!location.travel) return;
+  show("site-map", !!(location.travel || location.support));
+  if (!location.travel && !location.support) return;
   const label = document.createElement("span");
-  label.textContent = game.locationId === "datacenter" ? "AZ SHUTTLE" : "TRAVEL TO SITE";
+  label.textContent = game.locationId === "datacenter" ? "AZ SHUTTLE" : "ON-SITE SUPPORT";
   map.append(label);
-  location.rooms.forEach((room, index) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = `${index + 1} ${room.name}`;
-    button.dataset.room = room.id;
-    if (game.locationId === "datacenter") button.setAttribute("aria-label", `Select ${room.name} as shuttle destination`);
-    button.addEventListener("click", () => visitRoom(room.id));
-    map.append(button);
-  });
+  if (location.travel) location.rooms.forEach((room, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `${index + 1} ${room.name}`;
+      button.dataset.room = room.id;
+      button.setAttribute("aria-label", `Select ${room.name} as shuttle destination`);
+      button.addEventListener("click", () => visitRoom(room.id));
+      map.append(button);
+    });
   if (game.locationId === "datacenter") {
     const status = document.createElement("span");
     status.id = "shuttle-status";
@@ -244,6 +356,7 @@ function useSupport() {
 }
 function home() {
   menu = true;
+  if (pacmanTimer) { clearInterval(pacmanTimer); pacmanTimer = null; }
   audio.setPlaying(false);
   pendingToast = null;
   menuScene();
@@ -260,6 +373,7 @@ function home() {
     "end-screen",
     "pause-screen",
     "upgrade-screen",
+    "manager-request-screen", "manager-email-screen", "manager-arcade-screen", "manager-equipment-screen",
     "wave-banner",
     "boss-hud",
     "game-toast",
@@ -434,7 +548,7 @@ function updateHud() {
     p.dashCooldown > 0 ? `${p.dashCooldown.toFixed(1)}s` : "DASH";
   $("touch-pulse").textContent =
     p.pulseCooldown > 0 ? `${p.pulseCooldown.toFixed(1)}s` : "PULSE";
-  if (locationFor(game.locationId)?.travel) {
+  if (locationFor(game.locationId)?.travel || locationFor(game.locationId)?.support) {
     for (const button of $("site-map").querySelectorAll("[data-room]")) {
       const room = locationFor(game.locationId).rooms.find((r) => r.id === button.dataset.room);
       button.disabled = game.mode !== "playing" || (game.locationId !== "datacenter" && game.travelCooldown > 0);
@@ -501,6 +615,10 @@ function frame(now) {
   const dt = lastTime ? Math.min((now - lastTime) / 1000, 0.1) : 0;
   lastTime = now;
   if (!menu) {
+    if (touchRepair && game.mode === "playing" && openManagerInteraction(game)) {
+      touchRepair = false;
+      session.clearInput();
+    }
     const x =
       (keys.has("d") || keys.has("arrowright") ? 1 : 0) -
       (keys.has("a") || keys.has("arrowleft") ? 1 : 0) +
@@ -511,6 +629,7 @@ function frame(now) {
       joystick.y;
     session.setInput({ x, y, repair: keys.has("e") || touchRepair });
     session.advance(dt);
+    syncManagerMode();
     processEvents();
     if (pendingToast && game.banner <= 0 && game.mode === "playing") {
       const queued = pendingToast;
@@ -573,6 +692,20 @@ $("help-dialog").addEventListener("close", () => {
 window.addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
   if ($("help-dialog").open || $("character-dialog").open) return;
+  if (game.mode === "manager_arcade") {
+    if (pacman.input(k)) e.preventDefault();
+    if (k === "escape") closeManagerOverlay("manager-arcade-screen");
+    return;
+  }
+  if (["manager_storage", "manager_mining"].includes(game.mode)) {
+    if (k === "escape") closeManagerOverlay("manager-equipment-screen");
+    return;
+  }
+  if (game.mode === "manager_email") {
+    if (k === "escape") closeManagerOverlay("manager-email-screen");
+    return;
+  }
+  if (game.mode === "manager_request") return;
   if (k === "enter" && menu) {
     if (
       document.activeElement?.tagName === "BUTTON" &&
@@ -594,9 +727,16 @@ window.addEventListener("keydown", (e) => {
     return;
   }
   if (menu || game.mode !== "playing") return;
-  if (locationFor(game.locationId)?.travel && !e.repeat) {
+  if (k === "e" && !e.repeat && openManagerInteraction(game)) {
+    e.preventDefault();
+    keys.delete("e");
+    session.clearInput();
+    syncManagerMode();
+    return;
+  }
+  if ((locationFor(game.locationId)?.travel || locationFor(game.locationId)?.support) && !e.repeat) {
     const index = Number(k) - 1;
-    if (index >= 0 && index < locationFor(game.locationId).rooms.length) {
+    if (locationFor(game.locationId).travel && index >= 0 && index < locationFor(game.locationId).rooms.length) {
       visitRoom(locationFor(game.locationId).rooms[index].id);
       return;
     }

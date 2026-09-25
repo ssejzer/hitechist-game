@@ -28,12 +28,22 @@ export function createBystanders(g) {
     [roster[i], roster[j]] = [roster[j], roster[i]];
   }
   const selected = roster.slice(0, count);
+  const rooms = g.locationId === "manager"
+    ? location.rooms.filter((room) => !["playroom", "hardware_storage", "bathroom", "conference", "crypto_mining", "kitchen"].includes(room.id))
+    : location.rooms;
+  const managerHomes = { rotem: "kitchen", tal: "kitchen", aldo: "conference",
+    nenad: "crypto_mining", luis: "crypto_mining" };
+  let requests = 0;
   // Level five has everyone present; six roam while the others linger.
   let roamers = 0;
   const people = [];
   for (const [index, character] of selected.entries()) {
-    const room = location.rooms[index % location.rooms.length];
-    const spot = freeSpot(g, room, people);
+    const room = g.locationId === "manager" && managerHomes[character.id]
+      ? location.rooms.find((item) => item.id === managerHomes[character.id])
+      : rooms[index % rooms.length];
+    const spot = character.id === "aldo" && g.locationId === "manager"
+      ? { x: room.x + room.width / 2, y: room.y + 500 }
+      : freeSpot(g, room, people);
     const roaming = character.id !== "tal" && (g.locationId !== "datacenter" || roamers++ < 6);
     const person = {
       id: `bystander-${character.id}`, characterId: character.id,
@@ -42,6 +52,12 @@ export function createBystanders(g) {
       moving: false, walkPhase: 0, wanderTime: g.random() * 2,
       targetX: spot.x, targetY: spot.y,
     };
+    if (g.locationId === "manager" && !managerHomes[character.id] && requests < 4) {
+      person.requestIndex = requests++;
+      person.requestResolved = false;
+      person.roaming = false;
+    }
+    if (g.locationId === "manager" && character.id === "aldo") person.roaming = false;
     people.push(person);
   }
   return people;

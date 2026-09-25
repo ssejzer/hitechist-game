@@ -32,7 +32,7 @@ Open the local address Vite prints (normally http://localhost:5173).
 | Hold E near a marked station | Complete its fix meter for 4 patches |
 | Hold E near damaged equipment | Restore 24 integrity for 4 patches |
 | Hold E near a coffee machine | Gain 8 seconds of faster movement and firing; the machine takes 20 seconds to brew again |
-| 1–3 at remote stages | Travel to a site or choose an AWS shuttle destination |
+| 1–3 at AWS datacenter | Choose an AWS shuttle destination |
 | R at remote stages | Dispatch technicians to repair and cover all sites |
 | P / Escape           | Pause or resume                                             |
 | Enter on title       | Start a shift                                               |
@@ -41,7 +41,7 @@ Open the local address Vite prints (normally http://localhost:5173).
 
 On phones, use the joystick and action buttons. The title screen shows a career graph with completed stages and best star ratings. The in-game HUD shows the level and current room; the minimap marks the player, equipment, and rooms. Doorway approaches stay clear of furniture. Call-center IT has an employee open space and communications room joined by a center doorway. Winning a stage selects the next unlocked level for the next shift, and the selection is remembered locally.
 
-Remote stages show travel and support controls below the playfield. At the AWS datacenter, press 1–3 or tap a destination, walk to your current building's marked shuttle stop, and stay there. A short boarding tip appears near the stop. A circulating shuttle boards you automatically when it arrives. The shuttle drives between the availability-zone buildings and grants equipment cover during the ride. The final Manager stage has faster, longer waves and a stronger promotion boss. The supplied `Velocity_Breach.mp3` plays in a loop during active shifts when sound is enabled; its audio gain is half the effects gain. Music pauses during menus, upgrades, pauses, and after a shift ends.
+Tech Lead has three nearby buildings, each with an office and a datacenter room at the back. Walk between them using the outdoor paths; the on-site support control remains available. At the AWS datacenter, press 1–3 or tap a destination, walk to your current building's south shuttle stop, and stay there. A circulating shuttle boards you automatically when it arrives. Each availability-zone building also has a north pedestrian entrance, while the long gaps between buildings require shuttle travel. The final Manager stage has faster, longer waves and a stronger promotion boss. Its playroom courtyard has roaming pets, a BBQ, and a swimming pool. Rotem and Tal spend time in the kitchen, Aldo presents in the conference room, and Nenad and Luis work in crypto mining. Use E at the mining station to collect bitcoin funding, then decommission old machines and buy replacements in hardware storage. The supplied `Velocity_Breach.mp3` plays in a loop during active shifts when sound is enabled; its audio gain is half the effects gain. Music pauses during menus, upgrades, pauses, and after a shift ends.
 
 Workplaces use deterministic 8 × 8 tile chunks with a bounded 32-chunk cache. Only nearby tiles are submitted to the renderer, cached sprites are reused, and enemies remain capped at 55. Characters and enemies have walking cycles and changing expressions; cosmetics do not alter gameplay randomness.
 
