@@ -5,7 +5,7 @@ async function walk(dir) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
     const path = `${dir}/${e.name}`;
     if (e.isDirectory()) await walk(path);
-    else if (e.name !== "sw.js") files.push(path.replace("dist/", "./"));
+    else if (e.name !== "sw.js" && !e.name.endsWith(".php")) files.push(path.replace("dist/", "./"));
   }
 }
 await walk("dist");

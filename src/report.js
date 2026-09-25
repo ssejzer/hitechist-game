@@ -44,6 +44,12 @@ export function performanceReportUrl(report, pageUrl) {
   return url.href;
 }
 
+export function performanceShareUrl(report, pageUrl) {
+  const url = new URL("share.php", pageUrl);
+  url.searchParams.set("report", JSON.stringify(report));
+  return url.href;
+}
+
 export function performanceReportText(report, url) {
   const employee = getCharacter(report.employee).name;
   const location = LOCATIONS[report.location].name;

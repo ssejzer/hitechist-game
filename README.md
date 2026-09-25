@@ -55,7 +55,7 @@ The game remains single-player. Its fixed-tick local session, input commands, se
 
 ## Hostinger deployment
 
-This is a **static website**. It needs no Node.js server, database, API keys, or account integration on Hostinger.
+The game is a **static website**. Social report previews use one small PHP file, `share.php`, so Facebook and LinkedIn can read each player's result. Hostinger web hosting must run PHP for those previews. No Node.js server, database, API keys, or account integration is needed.
 
 ```sh
 npm run build
@@ -64,10 +64,10 @@ npm run build
 1. Open your website's **File Manager** in Hostinger hPanel.
 2. Create a `root-access` folder inside `public_html`.
 3. Upload the contents of `dist/` into that folder.
-4. Check that `index.html`, `assets/`, `fonts/`, and `sw.js` are directly inside `public_html/root-access/`.
+4. Check that `index.html`, `share.php`, `assets/`, `fonts/`, and `sw.js` are directly inside `public_html/root-access/`.
 5. Open `https://your-domain.com/root-access/`.
 
-You can also upload the contents of `dist/` to a subdomain's document root. All production asset paths are relative, so both approaches work. HTTPS enables offline caching. After the first completed load, the game can reload without an internet connection. A new build creates a fresh versioned cache. To update the game, rebuild and upload the new contents of `dist/`, replacing the previous game files.
+You can also upload the contents of `dist/` to a subdomain's document root. All production asset paths are relative, so both approaches work. HTTPS enables offline caching for the game; shared report pages need a connection. After the first completed load, the game can reload without an internet connection. A new build creates a fresh versioned cache. To update the game, rebuild and upload the new contents of `dist/`, replacing the previous game files.
 
 Nothing has been deployed to your hosting account.
 

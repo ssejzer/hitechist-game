@@ -11,7 +11,7 @@ import { MANAGER_REQUESTS, MANAGER_EMAILS, NEW_EQUIPMENT, HR_HIRES, openManagerI
   hireManagerHelp } from "./manager.js";
 import { Pacman } from "./pacman.js";
 import { createPerformanceReport, parsePerformanceReport, performanceReportText,
-  performanceReportUrl } from "./report.js";
+  performanceReportUrl, performanceShareUrl } from "./report.js";
 const $ = (id) => document.getElementById(id);
 if (navigator.maxTouchPoints > 0)
   document.querySelector(".arcade").classList.add("touch-device");
@@ -281,7 +281,7 @@ function renderPerformanceReport(target, report, full = false) {
   target.replaceChildren(heading, verdict, metrics);
 }
 function setReportShareLinks(report) {
-  const url = performanceReportUrl(report, location.href);
+  const url = performanceShareUrl(report, location.href);
   $("share-facebook").href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
   $("share-linkedin").href = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
   return url;
@@ -585,7 +585,7 @@ function end(event) {
   latestReport = createPerformanceReport(game, event.won, rating);
   renderPerformanceReport($("end-report"), latestReport);
   setReportShareLinks(latestReport);
-  $("report-share-status").textContent = "Your link opens this report for anyone you share it with.";
+  $("report-share-status").textContent = "The post preview shows your result; the link opens your full report.";
   $("status-text").textContent = event.won
     ? "EXIT CODE 0. SHIFT COMPLETE."
     : "EXIT CODE 1. BLAMELESS POST-MORTEM INCOMING.";
