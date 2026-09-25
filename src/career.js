@@ -168,9 +168,9 @@ export const LOCATIONS = {
       { id: "deadline", name: "RELEASE DEADLINE", kind: "compute", x: 8650, y: 3700 },
     ],
     waves: [
-      { name: "PLANNING MEETING", tagline: "Make a quick decision and assign the team under pressure.", duration: 34, interval: 1.45, steps: ["decision", "assignment"] },
-      { name: "SPRINT BLOCKERS", tagline: "Collect the unblocker and protect the team's deadline.", duration: 38, interval: 1.2, steps: ["unblocker", "deadline"] },
-      { name: "RELEASE WEEK", tagline: "Defend the deadline against a relentless interruption wave.", duration: 44, interval: 0.95, steps: ["deadline"] },
+      { name: "PLANNING MEETING", tagline: "Make a quick decision and assign the team under pressure.", duration: 340, interval: 1.45, steps: ["decision", "assignment"] },
+      { name: "SPRINT BLOCKERS", tagline: "Collect the unblocker and protect the team's deadline.", duration: 380, interval: 1.2, steps: ["unblocker", "deadline"] },
+      { name: "RELEASE WEEK", tagline: "Defend the deadline against a relentless interruption wave.", duration: 440, interval: 0.95, steps: ["deadline"] },
     ],
   },
 };
