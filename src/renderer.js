@@ -41,6 +41,8 @@ export class Renderer {
     }
     this.talScene = new Image();
     this.talScene.src = `${import.meta.env.BASE_URL}assets/characters/tal-assistant-scene.png`;
+    this.shuttleSprite = new Image();
+    this.shuttleSprite.src = `${import.meta.env.BASE_URL}assets/shuttle.png`;
     this.pet = null;
     this.world = new WorldChunks();
     this.tiles = [];
@@ -553,8 +555,8 @@ export class Renderer {
         ctx.drawImage(this.talScene, Math.round(person.x - 75.6), Math.round(person.y - 114.8), 151.2, 114.8);
         ctx.restore();
         const speaking = Math.floor(time / 2.4) % 2;
-        const bubbleX = person.x + (speaking ? 44 : -49);
-        const bubbleY = person.y - (speaking ? 96 : 87);
+        const bubbleX = person.x;
+        const bubbleY = person.y - 122;
         this.worldTag(ctx, speaking ? "•••" : "...", bubbleX, bubbleY, "#f6cf7f");
       }
       return;
@@ -609,6 +611,12 @@ export class Renderer {
     ctx.translate(Math.round(p.x), Math.round(p.y));
     ctx.scale(p.facing ?? 1, 1);
     this.polygon(ctx, [[-91, 22], [-21, -12], [92, 18], [16, 55]], "#07191baa");
+    if (this.shuttleSprite.complete && this.shuttleSprite.naturalWidth) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(this.shuttleSprite, -95, -57, 190, 95);
+      ctx.restore();
+      return;
+    }
     this.polygon(ctx, [[-82, -35], [-25, -64], [75, -31], [14, -2]], "#f7fbf7");
     this.polygon(ctx, [[-82, -35], [14, -2], [14, 40], [-82, 9]], "#d7e7ec");
     this.polygon(ctx, [[14, -2], [75, -31], [75, 10], [14, 40]], "#edf5f6");
