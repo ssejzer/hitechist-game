@@ -29,7 +29,7 @@ export function createBystanders(g) {
   }
   const selected = roster.slice(0, count);
   const rooms = g.locationId === "manager"
-    ? location.rooms.filter((room) => !["playroom", "hardware_storage", "bathroom", "conference", "crypto_mining", "kitchen"].includes(room.id))
+    ? location.rooms.filter((room) => !["private_office", "playroom", "hardware_storage", "bathroom", "conference", "crypto_mining", "kitchen"].includes(room.id))
     : location.rooms;
   const managerHomes = { rotem: "kitchen", tal: "kitchen", aldo: "conference",
     nenad: "crypto_mining", luis: "crypto_mining" };

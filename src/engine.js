@@ -91,7 +91,7 @@ export const boundsFor = (g) => locationFor(g.locationId) ?? { width: WORLD_WIDT
 export function coffeeMachinesFor(location) {
   if (!location || location.id === "datacenter") return [];
   return location.rooms.filter((room) => location.id !== "manager" ||
-    !["playroom", "hardware_storage", "bathroom"].includes(room.id)).map((room) => {
+    !["private_office", "playroom", "hardware_storage", "bathroom"].includes(room.id)).map((room) => {
     const candidates = [
       [0.32, 0.32], [0.68, 0.32], [0.32, 0.68], [0.68, 0.68],
       [0.5, 0.28], [0.5, 0.72], [0.28, 0.5], [0.72, 0.5],
@@ -141,6 +141,7 @@ export function createGame(random = seededRandom(WORLD_SEED), locationId = null,
     hardwareBudget: location?.id === "manager" ? 80 : 0,
     oldMachines: location?.id === "manager" ? 3 : 0,
     newEquipment: [],
+    hiredHelp: [],
     bitcoins: 0,
     miningCooldown: 0,
     coffeeMachines: coffeeMachinesFor(location),
@@ -503,7 +504,8 @@ export function travel(g, roomId) {
 }
 export function dispatchSupport(g) {
   const location = locationFor(g.locationId);
-  if (g.mode !== "playing" || !(location?.travel || location?.support) || g.supportCooldown > 0) return false;
+  if (g.mode !== "playing" || !(location?.travel || location?.support) || g.supportCooldown > 0 ||
+      (g.locationId === "manager" && !g.hiredHelp.includes("people"))) return false;
   for (const s of g.servers) s.hp = Math.min(100, s.hp + 35);
   g.grace = Math.max(g.grace, 8);
   g.supportCooldown = 24;
@@ -690,6 +692,8 @@ export function step(g, dt, input = {}) {
       drone.x += (target.x - drone.x) / gap * move;
       drone.y += (target.y - drone.y) / gap * move;
     }
+    if (g.hiredHelp?.includes("agent") && damaged && distance(drone, target) < 90)
+      damaged.hp = Math.min(100, damaged.hp + 4 * dt);
   }
   if (!driving && input.repair && g.repairTimer === 0) {
     if (!useCoffee(g)) repair(g);

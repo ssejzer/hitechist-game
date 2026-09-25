@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { LOCATIONS } from "../src/career.js";
-import { createGame, step, repair, pickUpgrade, spawnEnemy, damageEnemy, activeObjectiveId, useCoffee } from "../src/engine.js";
+import { createGame, step, repair, pickUpgrade, spawnEnemy, damageEnemy, activeObjectiveId, useCoffee, dispatchSupport } from "../src/engine.js";
 import { isSolidAt, blockAt } from "../src/world.js";
 import { LocalSession } from "../src/session.js";
 import { CHARACTERS } from "../src/characters.js";
 import { MANAGER_EMAILS, openManagerInteraction, resolveManagerRequest, answerManagerEmail,
-  decommissionMachine, buyEquipment, collectBitcoin } from "../src/manager.js";
+  decommissionMachine, buyEquipment, collectBitcoin, hireManagerHelp } from "../src/manager.js";
 
 test("career bystanders grow by level and the fifth level includes the whole roster", () => {
   const expected = { office: 0, call_center: 1, sysadmin: 2, tech_lead: 4, datacenter: 10, manager: 10 };
@@ -57,8 +57,41 @@ test("private office email and playroom cabinet activate only nearby", () => {
     assert.equal(answerManagerEmail(g, i, 0), true);
   assert.equal(g.managerEmailsAnswered, MANAGER_EMAILS.length);
   g.mode = "playing";
-  Object.assign(g.player, interactions[1]);
+  Object.assign(g.player, interactions.find((item) => item.id === "arcade"));
   assert.equal(openManagerInteraction(g), "arcade");
+});
+
+test("private office has one desk and HR hires people and a monitoring agent", () => {
+  const session = new LocalSession({ seed: 11, locationId: "manager" });
+  const g = session.state;
+  const office = LOCATIONS.manager.rooms.find((room) => room.id === "private_office");
+  const hr = LOCATIONS.manager.rooms.find((room) => room.id === "people");
+  const desks = [];
+  for (let y = office.y + 110; y < office.y + office.height - 110; y += 110)
+    for (let x = office.x + 110; x < office.x + office.width - 110; x += 110)
+      if (blockAt(Math.floor(x / 110), Math.floor(y / 110), "manager") === "office-desk")
+        desks.push({ x, y });
+  assert.equal(desks.length, 1);
+  assert.equal(g.coffeeMachines.some((machine) => machine.roomId === "private_office"), false);
+  assert.equal(g.bystanders.some((person) => person.roomId === "private_office"), false);
+  assert.equal(dispatchSupport(g), false);
+  const station = LOCATIONS.manager.interactions.find((item) => item.id === "hr");
+  assert.ok(station.x > hr.x && station.x < hr.x + hr.width && station.y > hr.y);
+  Object.assign(g.player, station);
+  assert.equal(openManagerInteraction(g), "hr");
+  assert.equal(hireManagerHelp(g, "people"), false);
+  g.hardwareBudget = 260;
+  assert.equal(hireManagerHelp(g, "people"), true);
+  assert.equal(hireManagerHelp(g, "people"), false);
+  assert.equal(hireManagerHelp(g, "agent"), true);
+  assert.ok(g.drone);
+  assert.equal(g.hardwareBudget, 10);
+  const restored = LocalSession.fromSnapshot(session.snapshot());
+  assert.deepEqual(restored.state.hiredHelp, ["people", "agent"]);
+  restored.state.mode = "playing";
+  restored.state.servers[0].hp = 20;
+  assert.equal(dispatchSupport(restored.state), true);
+  assert.ok(restored.state.servers[0].hp > 20);
 });
 
 test("bystanders wander and their state survives a snapshot", () => {
@@ -79,7 +112,7 @@ test("coffee machines stay in staffed rooms and coffee overload expires", () => 
   for (const location of Object.values(LOCATIONS)) {
     const g = createGame(() => 0.5, location.id);
     assert.equal(g.coffeeMachines.length, location.id === "datacenter" ? 0 :
-      location.id === "manager" ? location.rooms.length - 3 : location.rooms.length);
+      location.id === "manager" ? location.rooms.length - 4 : location.rooms.length);
     for (const machine of g.coffeeMachines) {
       assert.equal(isSolidAt(machine.x, machine.y, 35, location.id), false, machine.id);
       assert.ok(location.rooms.some((room) => room.id === machine.roomId &&

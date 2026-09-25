@@ -191,11 +191,20 @@
             </div>
             <div class="overlay hidden" id="manager-email-screen">
               <div class="modal manager-modal" role="dialog" aria-modal="true" aria-labelledby="manager-email-title">
-                <span class="eyebrow">YOUR PRIVATE OFFICE / INBOX</span>
+                <span class="eyebrow">MY OFFICE / DESK</span>
                 <h2 id="manager-email-title">Email</h2>
                 <p id="manager-email-copy"></p>
                 <div class="manager-actions" id="manager-email-actions"></div>
                 <button class="secondary-button" id="manager-email-close">CLOSE COMPUTER</button>
+              </div>
+            </div>
+            <div class="overlay hidden" id="manager-hr-screen">
+              <div class="modal manager-modal" role="dialog" aria-modal="true" aria-labelledby="manager-hr-title">
+                <span class="eyebrow">HR OFFICE / HIRING</span>
+                <h2 id="manager-hr-title">Hire your team</h2>
+                <p id="manager-hr-copy" role="status"></p>
+                <div class="manager-actions" id="manager-hr-actions"></div>
+                <button class="secondary-button" id="manager-hr-close">LEAVE HR</button>
               </div>
             </div>
             <div class="overlay hidden" id="manager-arcade-screen">
@@ -235,14 +244,26 @@
                 <p id="end-copy">
                   Production is alive. Your phone is finally quiet.
                 </p>
-                <div class="end-stats">
-                  <div><span>SCORE</span><b id="end-score">0</b></div>
-                  <div>
-                    <span>PROCESSES KILLED</span><b id="end-kills">0</b>
+                <div class="performance-report" aria-label="Hitechist employee performance report">
+                  <div id="end-report"></div>
+                  <div class="end-stats">
+                    <div><span>SCORE</span><b id="end-score">0</b></div>
+                    <div>
+                      <span>PROCESSES KILLED</span><b id="end-kills">0</b>
+                    </div>
+                    <div><span>TIME ON CALL</span><b id="end-time">0:00</b></div>
                   </div>
-                  <div><span>TIME ON CALL</span><b id="end-time">0:00</b></div>
                 </div>
                 <p class="end-record" id="end-record"></p>
+                <div class="report-share">
+                  <span>SHARE YOUR PERFORMANCE REPORT</span>
+                  <div class="report-share-actions">
+                    <a id="share-facebook" href="#" target="_blank" rel="noopener noreferrer">Facebook ↗</a>
+                    <a id="share-linkedin" href="#" target="_blank" rel="noopener noreferrer">LinkedIn ↗</a>
+                    <button id="copy-report" type="button">Copy report</button>
+                  </div>
+                  <p id="report-share-status" role="status"></p>
+                </div>
                 <button class="primary-button" id="restart-button">
                   ONE MORE SHIFT <span>↻</span></button
                 ><button class="secondary-button" id="end-switch-button">
@@ -251,6 +272,14 @@
                 ><button class="secondary-button" id="home-button">
                   Back to title
                 </button>
+              </div>
+            </div>
+            <div class="overlay hidden" id="shared-report-screen">
+              <div class="modal shared-report-modal" role="dialog" aria-modal="true" aria-labelledby="shared-report-title">
+                <span class="eyebrow">ROOT ACCESS / SHARED RESULT</span>
+                <h2 id="shared-report-title">Employee performance report<span>.</span></h2>
+                <div class="performance-report" id="shared-report"></div>
+                <button class="primary-button" id="shared-report-close">PLAY ROOT ACCESS <span>↗</span></button>
               </div>
             </div>
           </div>

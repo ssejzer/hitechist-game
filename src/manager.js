@@ -34,8 +34,24 @@ export function openManagerInteraction(g) {
   const item = nearestManagerInteraction(g);
   if (!item) return null;
   g.mode = ({ computer: "manager_email", arcade: "manager_arcade",
-    storage: "manager_storage", mining: "manager_mining" })[item.id];
+    hr: "manager_hr", storage: "manager_storage", mining: "manager_mining" })[item.id];
   return item.id;
+}
+
+export const HR_HIRES = [
+  { id: "people", name: "FIELD TECHNICIANS", cost: 100, description: "Unlock R to dispatch repairs and cover every station." },
+  { id: "agent", name: "MONITORING AGENT", cost: 150, description: "Deploy an agent that collects patches and repairs damaged stations." },
+];
+
+export function hireManagerHelp(g, id) {
+  if (g.locationId !== "manager" || g.mode !== "manager_hr") return false;
+  const hire = HR_HIRES.find((item) => item.id === id);
+  if (!hire || g.hiredHelp.includes(id) || g.hardwareBudget < hire.cost) return false;
+  g.hardwareBudget -= hire.cost;
+  g.hiredHelp.push(id);
+  if (id === "agent" && !g.drone)
+    g.drone = { x: g.player.x - 80, y: g.player.y + 70, targetId: null };
+  return true;
 }
 
 export const NEW_EQUIPMENT = [

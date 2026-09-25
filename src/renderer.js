@@ -1198,6 +1198,7 @@ export class Renderer {
           ctx.drawImage(sprite, Math.round(p.x - 80), Math.round(p.y - 112));
         }
         if (entity.type === "office-desk" && artName !== "meeting-table" &&
+            !(g.locationId === "manager" && entity.x >= 300 && entity.x < 3400 && entity.y >= 2950 && entity.y < 5350) &&
             (entity.col + entity.row) % 3 !== 0)
           this.seatedWorker(ctx, p.x, p.y, entity.col + entity.row);
         if (entity.type === "network-rack" && g.locationId === "call_center" && entity.row % 9 === 0)

@@ -126,6 +126,12 @@ export function blockAt(col, row, locationId = null) {
             Math.abs(y - (room.y + room.height * 0.6)) < TILE / 2) return "office-desk";
         return "manager-floor";
       }
+      if (room.id === "private_office") {
+        if (Math.abs(x - 1850) < TILE / 2 && Math.abs(y - 3700) < TILE / 2)
+          return "office-desk";
+        return "office-floor";
+      }
+      if (room.id === "people") return "manager-floor";
       const furnishing = MANAGER_FURNISHINGS[room.id];
       const prop = furnishing?.find(([, dx, dy]) =>
         Math.abs(x - room.x - dx) < TILE / 2 && Math.abs(y - room.y - dy) < TILE / 2);

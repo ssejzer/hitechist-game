@@ -791,6 +791,9 @@ footer a {
 }
 .end-modal {
   max-width: 570px;
+  max-height: 100%;
+  overflow-y: auto;
+  width: 100%;
 }
 .end-modal img {
   width: 75px;
@@ -804,6 +807,34 @@ footer a {
   gap: 32px;
   margin: 22px 0;
 }
+.performance-report {
+  background: #152a25;
+  border: 1px solid #71915d;
+  box-shadow: inset 0 0 0 3px #152a25, inset 0 0 0 4px #3c5945;
+  padding: 16px 18px;
+  text-align: left;
+  margin-top: 18px;
+}
+.report-heading { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.report-heading span:first-child { flex-basis: 100%; color: #a4bd91; font: 10px var(--mono); letter-spacing: .07em; }
+.report-heading strong { color: #e6efda; font: 700 27px "Barlow Condensed", Impact, sans-serif; }
+.report-heading span:last-child { color: #a4bd91; font: 10px var(--mono); }
+.report-verdict { color: var(--lime); font: 12px var(--mono); padding: 10px 0; border-bottom: 1px solid #476448; }
+.report-metrics { display: flex; gap: 18px; justify-content: space-between; padding-top: 12px; }
+.report-metrics div { display: flex; flex-direction: column; gap: 5px; }
+.report-metrics span { color: #9caf94; font: 9px var(--mono); }
+.report-metrics b { color: #e6efda; font: 16px var(--mono); }
+.performance-report .end-stats { border-top: 1px solid #476448; justify-content: space-between; margin: 14px 0 0; padding-top: 12px; gap: 12px; }
+.report-share { margin-top: 10px; }
+.report-share > span { color: #a4bd91; font: 10px var(--mono); }
+.report-share-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 8px; }
+.report-share-actions a, .report-share-actions button { border: 1px solid #71915d; background: #1a3329; color: #d8e9c7; padding: 9px 12px; font: 11px var(--mono); text-decoration: none; }
+.report-share-actions a:hover, .report-share-actions button:hover { border-color: var(--lime); }
+.report-share p { margin: 6px 0 0; font: 10px var(--mono); }
+.shared-report-modal { width: min(100%, 600px); max-height: 100%; overflow-y: auto; }
+.shared-report-modal .performance-report { margin-top: 22px; }
+.shared-report-modal .report-metrics { flex-wrap: wrap; }
+.shared-report-modal .report-metrics div { min-width: 27%; }
 .end-stats div {
   display: flex;
   flex-direction: column;

@@ -6,9 +6,12 @@ import { AudioSystem } from "./audio.js";
 import { LocalSession } from "./session.js";
 import { CHARACTERS, getCharacter, portraitPath } from "./characters.js";
 import { createBystanders } from "./bystanders.js";
-import { MANAGER_REQUESTS, MANAGER_EMAILS, NEW_EQUIPMENT, openManagerInteraction,
-  resolveManagerRequest, answerManagerEmail, decommissionMachine, buyEquipment, collectBitcoin } from "./manager.js";
+import { MANAGER_REQUESTS, MANAGER_EMAILS, NEW_EQUIPMENT, HR_HIRES, openManagerInteraction,
+  resolveManagerRequest, answerManagerEmail, decommissionMachine, buyEquipment, collectBitcoin,
+  hireManagerHelp } from "./manager.js";
 import { Pacman } from "./pacman.js";
+import { createPerformanceReport, parsePerformanceReport, performanceReportText,
+  performanceReportUrl } from "./report.js";
 const $ = (id) => document.getElementById(id);
 if (navigator.maxTouchPoints > 0)
   document.querySelector(".arcade").classList.add("touch-device");
@@ -29,6 +32,7 @@ let best = 0;
 let selectedCharacter = "sebastian";
 let selectedLocation = "office";
 let career = { unlocked: ["office"], ratings: {} };
+let latestReport = null;
 const pacman = new Pacman($("pacman-canvas"), $("pacman-status"));
 let pacmanTimer = null;
 function closeManagerOverlay(id) {
@@ -118,13 +122,32 @@ function showManagerEquipment() {
   show("manager-equipment-screen", true);
   (holder.querySelector("button:not(:disabled)") || $("manager-equipment-close")).focus({ preventScroll: true });
 }
+function showManagerHr() {
+  $("manager-hr-copy").textContent = `Available budget: ${game.hardwareBudget}`;
+  const holder = $("manager-hr-actions");
+  holder.replaceChildren();
+  for (const hire of HR_HIRES) {
+    const button = document.createElement("button");
+    button.className = "primary-button";
+    button.textContent = `${game.hiredHelp.includes(hire.id) ? "HIRED" : "HIRE"} ${hire.name} · ${hire.cost} — ${hire.description}`;
+    button.disabled = game.hiredHelp.includes(hire.id) || game.hardwareBudget < hire.cost;
+    button.addEventListener("click", () => {
+      if (hireManagerHelp(game, hire.id)) showManagerHr();
+    });
+    holder.append(button);
+  }
+  show("manager-hr-screen", true);
+  (holder.querySelector("button:not(:disabled)") || $("manager-hr-close")).focus({ preventScroll: true });
+}
 function syncManagerMode() {
   if (game.mode === "manager_request" && $("manager-request-screen").classList.contains("hidden")) showManagerRequest();
   if (game.mode === "manager_email" && $("manager-email-screen").classList.contains("hidden")) showManagerEmail();
   if (game.mode === "manager_arcade" && $("manager-arcade-screen").classList.contains("hidden")) showManagerArcade();
+  if (game.mode === "manager_hr" && $("manager-hr-screen").classList.contains("hidden")) showManagerHr();
   if (["manager_storage", "manager_mining"].includes(game.mode) && $("manager-equipment-screen").classList.contains("hidden")) showManagerEquipment();
 }
 $("manager-email-close").addEventListener("click", () => closeManagerOverlay("manager-email-screen"));
+$("manager-hr-close").addEventListener("click", () => closeManagerOverlay("manager-hr-screen"));
 $("pacman-close").addEventListener("click", () => closeManagerOverlay("manager-arcade-screen"));
 $("manager-equipment-close").addEventListener("click", () => closeManagerOverlay("manager-equipment-screen"));
 $("pacman-restart").addEventListener("click", () => pacman.reset());
@@ -223,6 +246,46 @@ const formatTime = (t) =>
   `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 const scoreText = (n) => String(Math.floor(n)).padStart(6, "0");
 const show = (id, visible) => $(id).classList.toggle("hidden", !visible);
+function renderPerformanceReport(target, report, full = false) {
+  const heading = document.createElement("div");
+  heading.className = "report-heading";
+  const label = document.createElement("span");
+  label.textContent = "HITECHIST / EMPLOYEE PERFORMANCE REPORT";
+  const employee = document.createElement("strong");
+  employee.textContent = getCharacter(report.employee).name;
+  const location = document.createElement("span");
+  location.textContent = locationFor(report.location).name;
+  heading.append(label, employee, location);
+  const verdict = document.createElement("div");
+  verdict.className = "report-verdict";
+  verdict.textContent = report.won
+    ? `SHIFT COMPLETE · ${"★".repeat(report.rating)}${"☆".repeat(3 - report.rating)}`
+    : "SHIFT INTERRUPTED · REVIEW REQUIRED";
+  const metrics = document.createElement("div");
+  metrics.className = "report-metrics";
+  const entries = [
+    ["INCIDENTS RESOLVED", `${report.incidents} / 3`],
+    ["SYSTEMS INTEGRITY", `${report.integrity}%`],
+    ...(full ? [["SCORE", scoreText(report.score)], ["PROCESSES KILLED", String(report.kills)],
+      ["TIME ON CALL", formatTime(report.seconds)]] : []),
+  ];
+  for (const [name, value] of entries) {
+    const item = document.createElement("div");
+    const label = document.createElement("span");
+    const amount = document.createElement("b");
+    label.textContent = name;
+    amount.textContent = value;
+    item.append(label, amount);
+    metrics.append(item);
+  }
+  target.replaceChildren(heading, verdict, metrics);
+}
+function setReportShareLinks(report) {
+  const url = performanceReportUrl(report, location.href);
+  $("share-facebook").href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+  $("share-linkedin").href = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
+  return url;
+}
 $("best-label").innerHTML = `LOCAL HIGH SCORE <b>${scoreText(best)}</b>`;
 function menuScene() {
   game = createGame(undefined, selectedLocation, selectedCharacter);
@@ -308,7 +371,7 @@ function start() {
   }));
   toast(
     game.locationId === "manager"
-      ? "Explore the rooms. Use E at the computer, arcade, hardware storage, and crypto mining station."
+      ? "Explore the rooms. Use E at your desk, HR hiring station, arcade, hardware storage, and crypto mining station."
       : navigator.maxTouchPoints > 0
       ? "Drag the joystick to move. Hold REPAIR beside the marked station."
       : "Move with WASD / arrows. Hold E beside the marked station.",
@@ -473,9 +536,10 @@ function end(event) {
   audio.setPlaying(false);
   pendingToast = null;
   const next = event.won ? locationFor(game.locationId)?.next : null;
+  let rating = 0;
   if (event.won && game.locationId) {
     if (next && !career.unlocked.includes(next)) career.unlocked.push(next);
-    const rating = game.player.hp >= 70 && game.servers.every((s) => s.hp >= 50)
+    rating = game.player.hp >= 70 && game.servers.every((s) => s.hp >= 50)
       ? 3 : game.player.hp >= 35 ? 2 : 1;
     career.ratings[game.locationId] = Math.max(career.ratings[game.locationId] || 0, rating);
     try { localStorage.setItem("hitechist-root-access-career", JSON.stringify(career)); } catch {}
@@ -518,6 +582,10 @@ function end(event) {
   $("end-record").textContent = record
     ? "↗ NEW LOCAL HIGH SCORE"
     : `LOCAL HIGH SCORE: ${scoreText(best)}`;
+  latestReport = createPerformanceReport(game, event.won, rating);
+  renderPerformanceReport($("end-report"), latestReport);
+  setReportShareLinks(latestReport);
+  $("report-share-status").textContent = "Your link opens this report for anyone you share it with.";
   $("status-text").textContent = event.won
     ? "EXIT CODE 0. SHIFT COMPLETE."
     : "EXIT CODE 1. BLAMELESS POST-MORTEM INCOMING.";
@@ -572,8 +640,11 @@ function updateHud() {
       if ($("shuttle-guide-text").textContent !== instruction) $("shuttle-guide-text").textContent = instruction;
     }
     const support = $("support-button");
-    support.disabled = game.mode !== "playing" || game.supportCooldown > 0;
-    support.textContent = game.supportCooldown > 0 ? `R SUPPORT ${Math.ceil(game.supportCooldown)}s` : "R DISPATCH SUPPORT";
+    support.disabled = game.mode !== "playing" || game.supportCooldown > 0 ||
+      (game.locationId === "manager" && !game.hiredHelp.includes("people"));
+    support.textContent = game.locationId === "manager" && !game.hiredHelp.includes("people")
+      ? "HIRE FIELD TECHNICIANS IN HR"
+      : game.supportCooldown > 0 ? `R SUPPORT ${Math.ceil(game.supportCooldown)}s` : "R DISPATCH SUPPORT";
   }
   for (const [i, s] of game.servers.entries()) {
     const el = $("server-status").children[i];
@@ -645,6 +716,23 @@ function frame(now) {
 $("start-button").addEventListener("click", start);
 $("restart-button").addEventListener("click", start);
 $("home-button").addEventListener("click", home);
+$("copy-report").addEventListener("click", async () => {
+  if (!latestReport) return;
+  try {
+    await navigator.clipboard.writeText(performanceReportText(latestReport,
+      performanceReportUrl(latestReport, location.href)));
+    $("report-share-status").textContent = "Report copied. Paste it into your post.";
+  } catch {
+    $("report-share-status").textContent = "Clipboard unavailable. Use a share button to post the report link.";
+  }
+});
+$("shared-report-close").addEventListener("click", () => {
+  show("shared-report-screen", false);
+  const url = new URL(location.href);
+  url.searchParams.delete("report");
+  history.replaceState(null, "", url);
+  $("start-button").focus({ preventScroll: true });
+});
 $("end-shift-button").addEventListener("click", home);
 function switchPlayer() {
   home();
@@ -699,6 +787,10 @@ window.addEventListener("keydown", (e) => {
   }
   if (["manager_storage", "manager_mining"].includes(game.mode)) {
     if (k === "escape") closeManagerOverlay("manager-equipment-screen");
+    return;
+  }
+  if (game.mode === "manager_hr") {
+    if (k === "escape") closeManagerOverlay("manager-hr-screen");
     return;
   }
   if (game.mode === "manager_email") {
@@ -801,6 +893,12 @@ $("touch-repair").addEventListener("pointerdown", (e) => {
 for (const event of ["pointerup", "pointercancel", "lostpointercapture"])
   $("touch-repair").addEventListener(event, () => (touchRepair = false));
 menuScene();
+const sharedReport = parsePerformanceReport(new URLSearchParams(location.search).get("report"));
+if (sharedReport) {
+  renderPerformanceReport($("shared-report"), sharedReport, true);
+  show("shared-report-screen", true);
+  $("shared-report-close").focus({ preventScroll: true });
+}
 requestAnimationFrame(frame);
 // Explicit opt-in for automated browser verification; absent in normal play.
 if (new URLSearchParams(location.search).has("test"))

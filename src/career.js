@@ -131,14 +131,14 @@ export const LOCATIONS = {
   },
   manager: {
     id: "manager", name: "MANAGER", width: 16500, height: 5700,
-    start: { x: 1850, y: 1450 },
+    start: { x: 1850, y: 1450 }, support: true,
     rooms: [
       { id: "meetings", name: "MEETING ROOMS", x: 300, y: 250, width: 3100, height: 2400 },
       { id: "soc", name: "SOC ROOM", x: 3700, y: 250, width: 3100, height: 2400 },
       { id: "operations", name: "TEAM OPERATIONS", x: 7100, y: 250, width: 3100, height: 2400 },
       { id: "playroom", name: "PLAYROOM", x: 11450, y: 900, width: 1200, height: 1100 },
-      { id: "private_office", name: "YOUR PRIVATE OFFICE", x: 300, y: 2950, width: 3100, height: 2400 },
-      { id: "people", name: "PEOPLE TEAM", x: 3700, y: 2950, width: 3100, height: 2400 },
+      { id: "private_office", name: "MY OFFICE", x: 300, y: 2950, width: 3100, height: 2400 },
+      { id: "people", name: "HR OFFICE", x: 3700, y: 2950, width: 3100, height: 2400 },
       { id: "release", name: "RELEASE WAR ROOM", x: 7100, y: 2950, width: 3100, height: 2400 },
       { id: "lounge", name: "TEAM LOUNGE", x: 10500, y: 2950, width: 1450, height: 1050 },
       { id: "hardware_storage", name: "HARDWARE STORAGE", x: 12150, y: 2950, width: 1450, height: 1050 },
@@ -157,6 +157,7 @@ export const LOCATIONS = {
     spawnPoints: [{ x: 650, y: 650 }, { x: 5250, y: 700 }, { x: 8650, y: 800 }, { x: 12050, y: 4700 }],
     interactions: [
       { id: "computer", name: "EMAIL INBOX", x: 1850, y: 3700 },
+      { id: "hr", name: "HIRE PEOPLE & AGENTS", x: 5250, y: 4500 },
       { id: "arcade", name: "PAC-MAN CABINET", x: 12050, y: 1450 },
       { id: "storage", name: "HARDWARE INVENTORY", x: 12875, y: 3500 },
       { id: "mining", name: "BITCOIN MINING", x: 15125, y: 3650 },
